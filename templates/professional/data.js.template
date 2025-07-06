@@ -1,0 +1,85 @@
+// CV Data Template - This will be replaced with actual user data
+const cvData = {
+  personalInfo: {
+    name: "{{NAME}}",
+    email: "{{EMAIL}}",
+    phone: "{{PHONE}}",
+    location: "{{LOCATION}}",
+    profilePicture: "{{PROFILE_PICTURE}}",
+    summary: "{{SUMMARY}}"
+  },
+  experience: [
+    {{#each EXPERIENCE}}
+    {
+      title: "{{title}}",
+      company: "{{company}}",
+      location: "{{location}}",
+      startDate: "{{startDate}}",
+      endDate: "{{endDate}}",
+      description: "{{description}}",
+      achievements: [
+        {{#each achievements}}
+        "{{this}}"{{#unless @last}},{{/unless}}
+        {{/each}}
+      ]
+    }{{#unless @last}},{{/unless}}
+    {{/each}}
+  ],
+  education: [
+    {{#each EDUCATION}}
+    {
+      degree: "{{degree}}",
+      institution: "{{institution}}",
+      location: "{{location}}",
+      graduationDate: "{{graduationDate}}",
+      gpa: "{{gpa}}",
+      achievements: [
+        {{#each achievements}}
+        "{{this}}"{{#unless @last}},{{/unless}}
+        {{/each}}
+      ]
+    }{{#unless @last}},{{/unless}}
+    {{/each}}
+  ],
+  skills: {
+    technical: [
+      {{#each SKILLS.technical}}
+      "{{this}}"{{#unless @last}},{{/unless}}
+      {{/each}}
+    ],
+    soft: [
+      {{#each SKILLS.soft}}
+      "{{this}}"{{#unless @last}},{{/unless}}
+      {{/each}}
+    ],
+    languages: [
+      {{#each SKILLS.languages}}
+      "{{this}}"{{#unless @last}},{{/unless}}
+      {{/each}}
+    ]
+  },
+  projects: [
+    {{#each PROJECTS}}
+    {
+      name: "{{name}}",
+      description: "{{description}}",
+      technologies: [
+        {{#each technologies}}
+        "{{this}}"{{#unless @last}},{{/unless}}
+        {{/each}}
+      ],
+      url: "{{url}}"
+    }{{#unless @last}},{{/unless}}
+    {{/each}}
+  ],
+  certifications: [
+    {{#each CERTIFICATIONS}}
+    {
+      name: "{{name}}",
+      issuer: "{{issuer}}",
+      date: "{{date}}",
+      url: "{{url}}"
+    }{{#unless @last}},{{/unless}}
+    {{/each}}
+  ]
+};
