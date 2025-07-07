@@ -1,19 +1,22 @@
-// Landing Page Script - Renders CV data into the template
+// File: templates/professional/script.js
+// Landing Page Script - Renders CV data with About Me section and theme toggle
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Landing page loading...', cvData);
     
-    // Helper function to get initials
+    // Initialize theme
+    initializeTheme();
+    
+    // Helper functions
     function getInitials(name) {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
     }
 
-    // Helper function to format date
     function formatDate(dateStr) {
         if (!dateStr) return '';
         if (dateStr.toLowerCase() === 'present') return 'Present';
         
-        // Try to parse and format the date
-        const date = new Date(dateStr + '-01'); // Add day for parsing
+        const date = new Date(dateStr + '-01');
         if (isNaN(date.getTime())) return dateStr;
         
         return date.toLocaleDateString('en-US', { 
@@ -22,7 +25,58 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Update page title
+    function calculateYearsExperience() {
+        if (!cvData.experience || cvData.experience.length === 0) return 0;
+        
+        let totalMonths = 0;
+        cvData.experience.forEach(exp => {
+            const startDate = new Date(exp.startDate + '-01');
+            const endDate = exp.endDate.toLowerCase() === 'present' ? new Date() : new Date(exp.endDate + '-01');
+            
+            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                              (endDate.getMonth() - startDate.getMonth());
+                totalMonths += months;
+            }
+        });
+        
+        return Math.floor(totalMonths / 12);
+    }
+
+    // Theme toggle functionality
+    function initializeTheme() {
+        const themeToggle = document.getElementById('theme-toggle');
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+        const body = document.body;
+        
+        // Check for saved theme preference or default to dark
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        setTheme(savedTheme);
+        
+        function setTheme(theme) {
+            if (theme === 'light') {
+                body.classList.remove('dark-theme');
+                body.classList.add('light-theme');
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            } else {
+                body.classList.remove('light-theme');
+                body.classList.add('dark-theme');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            }
+            localStorage.setItem('theme', theme);
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = body.classList.contains('light-theme') ? 'light' : 'dark';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            setTheme(newTheme);
+        });
+    }
+
+    // Update page title and meta
     document.title = `${cvData.personalInfo.name} - Professional Profile`;
 
     // Update header
@@ -33,11 +87,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (headerName) headerName.textContent = cvData.personalInfo.name;
     if (emailLink) emailLink.href = `mailto:${cvData.personalInfo.email}`;
     
-    // Set current title from first experience
     const currentTitle = cvData.experience.length > 0 ? cvData.experience[0].title : 'Professional';
     if (headerTitle) headerTitle.textContent = currentTitle;
 
-    // Update hero section - THIS WAS THE MISSING PART!
+    // Update hero section
     const heroName = document.getElementById('hero-name');
     const heroTitle = document.getElementById('hero-title');
     const heroLocation = document.getElementById('hero-location');
@@ -47,7 +100,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (heroName) heroName.textContent = cvData.personalInfo.name;
     if (heroTitle) heroTitle.textContent = currentTitle;
     
-    // FIX: Properly update the summary
     if (heroSummary) {
         heroSummary.textContent = cvData.personalInfo.summary || 'Professional dedicated to excellence and innovation.';
     }
@@ -57,16 +109,40 @@ document.addEventListener('DOMContentLoaded', function() {
         if (locationSpan) locationSpan.textContent = cvData.personalInfo.location;
     }
 
-    // Handle hero avatar properly
+    // Handle hero avatar
     if (heroAvatar && cvData.personalInfo.profilePicture) {
-        // Replace entire content with image
         heroAvatar.innerHTML = `<img src="${cvData.personalInfo.profilePicture}" alt="${cvData.personalInfo.name}" class="w-full h-full object-cover rounded-full">`;
         heroAvatar.className = "hero-avatar w-48 h-48 rounded-full overflow-hidden";
     } else if (heroAvatar) {
-        // Keep initials styling
         heroAvatar.className = "hero-avatar w-48 h-48 rounded-full bg-white/10 flex items-center justify-center text-6xl font-bold text-white backdrop-blur-sm";
         const initials = getInitials(cvData.personalInfo.name);
         heroAvatar.innerHTML = `<span>${initials}</span>`;
+    }
+
+    // Update About Me section
+    const aboutText = document.getElementById('about-text');
+    const yearsExperience = document.getElementById('years-experience');
+    const projectsCompleted = document.getElementById('projects-completed');
+    const skillsCount = document.getElementById('skills-count');
+
+    if (aboutText && cvData.personalInfo.aboutMe) {
+        aboutText.textContent = cvData.personalInfo.aboutMe;
+    }
+
+    // Calculate and display statistics
+    if (yearsExperience) {
+        const years = calculateYearsExperience();
+        yearsExperience.textContent = years;
+    }
+
+    if (projectsCompleted) {
+        const projectCount = cvData.projects ? cvData.projects.length : 0;
+        projectsCompleted.textContent = projectCount;
+    }
+
+    if (skillsCount) {
+        const totalSkills = (cvData.skills.technical?.length || 0) + (cvData.skills.soft?.length || 0);
+        skillsCount.textContent = totalSkills;
     }
 
     // Update quick contact
@@ -85,26 +161,26 @@ document.addEventListener('DOMContentLoaded', function() {
         if (phoneSpan) phoneSpan.textContent = cvData.personalInfo.phone;
     }
 
-    // Render Experience with better date alignment
+    // Render Experience
     const experienceContainer = document.getElementById('experience-container');
     if (experienceContainer && cvData.experience.length > 0) {
         experienceContainer.innerHTML = cvData.experience.map(exp => `
             <div class="experience-card">
                 <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-4">
                     <div class="flex-1">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-1">${exp.title}</h3>
-                        <p class="text-lg text-blue-600 font-medium mb-1">${exp.company}</p>
-                        <p class="text-gray-600">${exp.location}</p>
+                        <h3 class="text-xl font-semibold text-white mb-1">${exp.title}</h3>
+                        <p class="text-lg text-blue-400 font-medium mb-1">${exp.company}</p>
+                        <p class="text-gray-300">${exp.location}</p>
                     </div>
-                    <div class="text-gray-500 text-right mt-2 lg:mt-0 lg:ml-4 flex-shrink-0">
+                    <div class="text-gray-400 text-right mt-2 lg:mt-0 lg:ml-4 flex-shrink-0">
                         <p class="font-medium text-sm lg:text-base whitespace-nowrap">${formatDate(exp.startDate)} - ${formatDate(exp.endDate)}</p>
                     </div>
                 </div>
-                <p class="text-gray-700 mb-4 leading-relaxed">${exp.description}</p>
+                <p class="text-gray-300 mb-4 leading-relaxed">${exp.description}</p>
                 ${exp.achievements && exp.achievements.length > 0 ? `
                     <div>
-                        <h4 class="font-medium text-gray-900 mb-2">Key Achievements:</h4>
-                        <ul class="list-disc list-inside text-gray-700 space-y-1">
+                        <h4 class="font-medium text-white mb-2">Key Achievements:</h4>
+                        <ul class="list-disc list-inside text-gray-300 space-y-1">
                             ${exp.achievements.map(achievement => `<li>${achievement}</li>`).join('')}
                         </ul>
                     </div>
@@ -152,28 +228,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const educationContainer = document.getElementById('education-container');
     if (educationContainer && cvData.education.length > 0) {
         educationContainer.innerHTML = cvData.education.map(edu => `
-        <div class="education-card">
-            <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-4">
-                <div class="flex-1">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-1">${edu.degree}</h3>
-                    <p class="text-lg text-blue-600 font-medium mb-1">${edu.institution}</p>
-                    <p class="text-gray-600">${edu.location}</p>
-                    ${edu.gpa ? `<p class="text-gray-600">GPA: ${edu.gpa}</p>` : ''}
+            <div class="education-card">
+                <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-4">
+                    <div class="flex-1">
+                        <h3 class="text-xl font-semibold text-white mb-1">${edu.degree}</h3>
+                        <p class="text-lg text-blue-400 font-medium mb-1">${edu.institution}</p>
+                        <p class="text-gray-300">${edu.location}</p>
+                        ${edu.gpa ? `<p class="text-gray-300">GPA: ${edu.gpa}</p>` : ''}
+                    </div>
+                    <div class="text-gray-400 text-right mt-2 lg:mt-0 lg:ml-4 flex-shrink-0">
+                        <p class="font-medium text-sm lg:text-base whitespace-nowrap">${edu.graduationDate}</p>
+                    </div>
                 </div>
-                <div class="text-gray-500 text-right mt-2 lg:mt-0 lg:ml-4 flex-shrink-0">
-                    <p class="font-medium text-sm lg:text-base whitespace-nowrap">${edu.graduationDate}</p>
-                </div>
+                ${edu.achievements && edu.achievements.length > 0 ? `
+                    <div>
+                        <h4 class="font-medium text-white mb-2">Achievements:</h4>
+                        <ul class="list-disc list-inside text-gray-300 space-y-1">
+                            ${edu.achievements.map(achievement => `<li>${achievement}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
             </div>
-            ${edu.achievements && edu.achievements.length > 0 ? `
-                <div>
-                    <h4 class="font-medium text-gray-900 mb-2">Achievements:</h4>
-                    <ul class="list-disc list-inside text-gray-700 space-y-1">
-                        ${edu.achievements.map(achievement => `<li>${achievement}</li>`).join('')}
-                    </ul>
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
+        `).join('');
     } else {
         const educationSection = document.getElementById('education-section');
         if (educationSection) educationSection.style.display = 'none';
@@ -184,18 +260,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (projectsContainer && cvData.projects.length > 0) {
         projectsContainer.innerHTML = cvData.projects.map(project => `
             <div class="project-card">
-                <h3 class="text-xl font-semibold text-gray-900 mb-3">${project.name}</h3>
-                <p class="text-gray-700 mb-4">${project.description}</p>
+                <h3 class="text-xl font-semibold text-white mb-3">${project.name}</h3>
+                <p class="text-gray-300 mb-4">${project.description}</p>
                 ${project.technologies && project.technologies.length > 0 ? `
                     <div class="mb-4">
-                        <h4 class="text-sm font-medium text-gray-900 mb-2">Technologies:</h4>
+                        <h4 class="text-sm font-medium text-white mb-2">Technologies:</h4>
                         <div class="flex flex-wrap gap-2">
                             ${project.technologies.map(tech => `<span class="skill-tag text-xs">${tech}</span>`).join('')}
                         </div>
                     </div>
                 ` : ''}
                 ${project.url ? `
-                    <a href="${project.url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 font-medium text-sm">
+                    <a href="${project.url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 font-medium text-sm">
                         View Project →
                     </a>
                 ` : ''}
@@ -211,11 +287,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (certificationsContainer && cvData.certifications.length > 0) {
         certificationsContainer.innerHTML = cvData.certifications.map(cert => `
             <div class="certification-card">
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">${cert.name}</h3>
-                <p class="text-blue-600 font-medium mb-2">${cert.issuer}</p>
-                <p class="text-gray-600 text-sm mb-3">${cert.date}</p>
+                <h3 class="text-lg font-semibold text-white mb-2">${cert.name}</h3>
+                <p class="text-blue-400 font-medium mb-2">${cert.issuer}</p>
+                <p class="text-gray-300 text-sm mb-3">${cert.date}</p>
                 ${cert.url ? `
-                    <a href="${cert.url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 font-medium text-sm">
+                    <a href="${cert.url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 font-medium text-sm">
                         View Certificate
                     </a>
                 ` : ''}
@@ -243,5 +319,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    console.log('Landing page loaded successfully!');
+    console.log('Landing page loaded successfully with dark theme!');
 });

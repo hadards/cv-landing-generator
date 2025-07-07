@@ -1,3 +1,4 @@
+/* File: frontend/src/styles.scss */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,6 +11,14 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark theme for admin interface */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #0f172a;
+    color: #f1f5f9;
+  }
 }
 
 /* Custom component classes */
@@ -25,4 +34,25 @@ body {
   .card {
     @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
   }
+
+  /* Dark theme variants */
+  @media (prefers-color-scheme: dark) {
+    .btn-secondary {
+      @apply bg-gray-700 hover:bg-gray-600 text-gray-200;
+    }
+    
+    .card {
+      @apply bg-gray-800 border-gray-700 text-gray-100;
+    }
+  }
+}
+
+/* Dark theme utility classes */
+.dark {
+  .bg-white { @apply bg-gray-900; }
+  .bg-gray-50 { @apply bg-gray-800; }
+  .text-gray-900 { @apply text-gray-100; }
+  .text-gray-700 { @apply text-gray-300; }
+  .text-gray-600 { @apply text-gray-400; }
+  .border-gray-200 { @apply border-gray-700; }
 }
