@@ -1,12 +1,12 @@
 // File: templates/professional/script.js
 // Landing Page Script - Renders CV data with About Me section and theme toggle
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     console.log('Landing page loading...', cvData);
-    
+
     // Initialize theme
     initializeTheme();
-    
+
     // Helper functions
     function getInitials(name) {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -15,31 +15,31 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatDate(dateStr) {
         if (!dateStr) return '';
         if (dateStr.toLowerCase() === 'present') return 'Present';
-        
+
         const date = new Date(dateStr + '-01');
         if (isNaN(date.getTime())) return dateStr;
-        
-        return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short' 
+
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short'
         });
     }
 
     function calculateYearsExperience() {
         if (!cvData.experience || cvData.experience.length === 0) return 0;
-        
+
         let totalMonths = 0;
         cvData.experience.forEach(exp => {
             const startDate = new Date(exp.startDate + '-01');
             const endDate = exp.endDate.toLowerCase() === 'present' ? new Date() : new Date(exp.endDate + '-01');
-            
+
             if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
-                              (endDate.getMonth() - startDate.getMonth());
-                totalMonths += months;
+                const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+                    (endDate.getMonth() - startDate.getMonth());
+                totalMonths += Math.max(0, months);
             }
         });
-        
+
         return Math.floor(totalMonths / 12);
     }
 
@@ -49,11 +49,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const sunIcon = document.getElementById('sun-icon');
         const moonIcon = document.getElementById('moon-icon');
         const body = document.body;
-        
+
         // Check for saved theme preference or default to dark
         const savedTheme = localStorage.getItem('theme') || 'dark';
         setTheme(savedTheme);
-        
+
         function setTheme(theme) {
             if (theme === 'light') {
                 body.classList.remove('dark-theme');
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             localStorage.setItem('theme', theme);
         }
-        
+
         themeToggle.addEventListener('click', () => {
             const currentTheme = body.classList.contains('light-theme') ? 'light' : 'dark';
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (headerName) headerName.textContent = cvData.personalInfo.name;
     if (emailLink) emailLink.href = `mailto:${cvData.personalInfo.email}`;
-    
+
     const currentTitle = cvData.experience.length > 0 ? cvData.experience[0].title : 'Professional';
     if (headerTitle) headerTitle.textContent = currentTitle;
 
@@ -99,11 +99,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (heroName) heroName.textContent = cvData.personalInfo.name;
     if (heroTitle) heroTitle.textContent = currentTitle;
-    
+
     if (heroSummary) {
         heroSummary.textContent = cvData.personalInfo.summary || 'Professional dedicated to excellence and innovation.';
     }
-    
+
     if (heroLocation) {
         const locationSpan = heroLocation.querySelector('span');
         if (locationSpan) locationSpan.textContent = cvData.personalInfo.location;
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const emailSpan = quickEmail.querySelector('span');
         if (emailSpan) emailSpan.textContent = cvData.personalInfo.email;
     }
-    
+
     if (quickPhone) {
         quickPhone.href = `tel:${cvData.personalInfo.phone}`;
         const phoneSpan = quickPhone.querySelector('span');
