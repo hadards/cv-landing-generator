@@ -102,18 +102,25 @@
                 <h2 class="section-header text-3xl font-bold text-white mb-6">About Me</h2>
             </div>
 
-            <div class="max-w-4xl mx-auto">
-                <div class="about-card bg-gray-900/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
-                    <div id="about-content" class="prose prose-invert max-w-none">
+            <div class="max-w-5xl mx-auto">
+                <div class="about-card bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700">
+                    <div id="about-content" class="w-full">
                         <p id="about-text" class="text-gray-300 text-lg leading-relaxed">{{ABOUT_ME}}</p>
                     </div>
 
                     <!-- Key Highlights -->
-                    <div id="about-highlights" class="mt-8 grid grid-cols-1 gap-6">
-                        <div class="text-center">
-                            <div class="text-3xl font-bold text-blue-400 mb-2" id="years-experience">
-                                {{YEARS_EXPERIENCE}}+</div>
-                            <p class="text-gray-400 text-sm">Years Experience</p>
+                    <div id="about-highlights" class="mt-8">
+                        <div class="highlight-item">
+                            <span class="highlight-number" id="years-experience">{{YEARS_EXPERIENCE}}+</span>
+                            <p class="highlight-label">Years Experience</p>
+                        </div>
+                        <div class="highlight-item">
+                            <span class="highlight-number" id="projects-completed">10+</span>
+                            <p class="highlight-label">Projects Completed</p>
+                        </div>
+                        <div class="highlight-item">
+                            <span class="highlight-number" id="skills-count">15+</span>
+                            <p class="highlight-label">Technical Skills</p>
                         </div>
                     </div>
                 </div>

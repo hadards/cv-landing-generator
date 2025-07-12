@@ -157,28 +157,25 @@ document.addEventListener('DOMContentLoaded', function () {
     // Update About Me section
     const aboutText = document.getElementById('about-text');
     const yearsExperience = document.getElementById('years-experience');
-    const projectsCompleted = document.getElementById('projects-completed');
-    const skillsCount = document.getElementById('skills-count');
 
     if (aboutText && cvData.personalInfo.aboutMe) {
+        // Set the text content with proper formatting
         aboutText.textContent = cvData.personalInfo.aboutMe;
+
+        // Ensure proper text formatting
+        aboutText.style.textAlign = 'justify';
+        aboutText.style.width = '100%';
+        aboutText.style.maxWidth = 'none';
+
+        console.log('About me text set:', cvData.personalInfo.aboutMe.length, 'characters');
     }
 
     // Calculate and display statistics
     if (yearsExperience) {
         const years = calculateYearsExperience();
-        yearsExperience.textContent = years;
+        yearsExperience.textContent = years > 0 ? years + '+' : '3+';
     }
 
-    if (projectsCompleted) {
-        const projectCount = cvData.projects ? cvData.projects.length : 0;
-        projectsCompleted.textContent = projectCount;
-    }
-
-    if (skillsCount) {
-        const totalSkills = (cvData.skills.technical?.length || 0) + (cvData.skills.soft?.length || 0);
-        skillsCount.textContent = totalSkills;
-    }
 
     // Update quick contact
     const quickEmail = document.getElementById('quick-email');
@@ -199,19 +196,57 @@ document.addEventListener('DOMContentLoaded', function () {
     // Render Experience
     const experienceContainer = document.getElementById('experience-container');
     if (experienceContainer && cvData.experience.length > 0) {
-        experienceContainer.innerHTML = cvData.experience.map(exp => `
+        experienceContainer.innerHTML = cvData.experience.map(exp => {
+            // Skip if this entry looks like a standalone "Key Achievements" section
+            const titleLower = (exp.title || '').toLowerCase();
+            const companyLower = (exp.company || '').toLowerCase();
+
+            // Don't render entries that are just achievement headers
+            if (titleLower.includes('key achievement') ||
+                titleLower.includes('achievement') ||
+                titleLower.includes('accomplishment') ||
+                companyLower.includes('key achievement') ||
+                companyLower.includes('achievement') ||
+                // Skip if title is just bullet points or dashes
+                exp.title.trim().startsWith('•') ||
+                exp.title.trim().startsWith('-') ||
+                exp.title.trim().startsWith('*') ||
+                // Skip if this looks like an achievement line
+                (exp.title.length < 50 && (
+                    titleLower.includes('improved') ||
+                    titleLower.includes('increased') ||
+                    titleLower.includes('reduced') ||
+                    titleLower.includes('developed') ||
+                    titleLower.includes('led') ||
+                    titleLower.includes('managed') ||
+                    titleLower.includes('created')
+                ) && !titleLower.includes(' at ') && !titleLower.includes(' - '))
+            ) {
+                console.log(`Skipping achievement entry: "${exp.title}"`);
+                return ''; // Return empty string to skip this entry
+            }
+
+            // Validate this is a real job entry
+            if (!exp.title || !exp.company || exp.title.length < 3 || exp.company.length < 3) {
+                console.log(`Skipping invalid job entry: "${exp.title}" at "${exp.company}"`);
+                return '';
+            }
+
+            console.log(`Rendering job: "${exp.title}" at "${exp.company}"`);
+
+            return `
             <div class="experience-card">
                 <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-4">
                     <div class="flex-1">
                         <h3 class="text-xl font-semibold text-white mb-1">${exp.title}</h3>
                         <p class="text-lg text-blue-400 font-medium mb-1">${exp.company}</p>
-                        <p class="text-gray-300">${exp.location}</p>
+                        ${exp.location ? `<p class="text-gray-300">${exp.location}</p>` : ''}
                     </div>
                     <div class="text-gray-400 text-right mt-2 lg:mt-0 lg:ml-4 flex-shrink-0">
                         <p class="font-medium text-sm lg:text-base whitespace-nowrap">${formatDate(exp.startDate)} - ${formatDate(exp.endDate)}</p>
                     </div>
                 </div>
-                <p class="text-gray-300 mb-4 leading-relaxed">${exp.description}</p>
+                ${exp.description ? `<p class="text-gray-300 mb-4 leading-relaxed">${exp.description}</p>` : ''}
                 ${exp.achievements && exp.achievements.length > 0 ? `
                     <div>
                         <h4 class="font-medium text-white mb-2">Key Achievements:</h4>
@@ -221,7 +256,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 ` : ''}
             </div>
-        `).join('');
+        `;
+        }).filter(html => html.trim() !== '').join(''); // Filter out empty strings
     } else {
         const experienceSection = document.getElementById('experience-section');
         if (experienceSection) experienceSection.style.display = 'none';
