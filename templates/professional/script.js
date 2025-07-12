@@ -29,18 +29,53 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!cvData.experience || cvData.experience.length === 0) return 0;
 
         let totalMonths = 0;
-        cvData.experience.forEach(exp => {
-            const startDate = new Date(exp.startDate + '-01');
-            const endDate = exp.endDate.toLowerCase() === 'present' ? new Date() : new Date(exp.endDate + '-01');
 
-            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-                const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-                    (endDate.getMonth() - startDate.getMonth());
-                totalMonths += Math.max(0, months);
+        cvData.experience.forEach(exp => {
+            if (!exp.startDate) return;
+
+            // Parse start date
+            let startDate;
+            if (exp.startDate.includes('-')) {
+                startDate = new Date(exp.startDate + '-01');
+            } else {
+                startDate = new Date(exp.startDate + '-01-01');
+            }
+
+            // Parse end date
+            let endDate;
+            if (exp.endDate && exp.endDate.toLowerCase() === 'present') {
+                endDate = new Date();
+            } else if (exp.endDate) {
+                if (exp.endDate.includes('-')) {
+                    endDate = new Date(exp.endDate + '-01');
+                } else {
+                    endDate = new Date(exp.endDate + '-01-01');
+                }
+            } else {
+                return; // Skip if no end date
+            }
+
+            // Validate dates
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                console.warn(`Invalid dates for ${exp.title}: ${exp.startDate} - ${exp.endDate}`);
+                return;
+            }
+
+            // Calculate months for this job
+            const monthsDiff = (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+                (endDate.getMonth() - startDate.getMonth());
+
+            // Only add positive months
+            if (monthsDiff > 0) {
+                totalMonths += monthsDiff;
+                console.log(`Job: ${exp.title}, Duration: ${monthsDiff} months`);
             }
         });
 
-        return Math.floor(totalMonths / 12);
+        const years = Math.floor(totalMonths / 12);
+        console.log(`Total experience: ${totalMonths} months = ${years} years`);
+
+        return years;
     }
 
     // Theme toggle functionality

@@ -263,6 +263,9 @@ header .bg-gradient {
 .step-text p {
   color: var(--text-medium) !important;
 }
+/* File: frontend/src/styles.scss (Step indicator fixes) */
+/* Fix for issue #2: Consistent circular step indicators */
+
 .step-indicator {
   display: flex;
   align-items: center;
@@ -274,6 +277,9 @@ header .bg-gradient {
   font-size: 1rem;
   transition: all 0.3s ease;
   position: relative;
+  flex-shrink: 0; /* Prevent shrinking */
+  min-width: 3rem; /* Ensure minimum width */
+  min-height: 3rem; /* Ensure minimum height */
 }
 
 .step-indicator.completed {
@@ -294,6 +300,34 @@ header .bg-gradient {
   background: var(--warm-cream);
   color: var(--warm-taupe);
   border: 2px solid rgba(255, 138, 101, 0.2);
+}
+
+/* Ensure SVG icons in completed state are properly sized */
+.step-indicator.completed svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Ensure numbers in pending/active state are centered */
+.step-indicator span {
+  line-height: 1;
+  text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .step-indicator {
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .step-indicator.completed svg {
+    width: 1rem;
+    height: 1rem;
+  }
 }
 
 /* File upload area - Inviting and warm */
