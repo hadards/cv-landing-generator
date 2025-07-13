@@ -6,6 +6,7 @@ const { OAuth2Client } = require('google-auth-library');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const archiver = require('archiver');
 const CVParser = require('./lib/cv-parser-modular');
 const TemplateProcessor = require('./lib/template-processor');
 require('dotenv').config();
@@ -495,8 +496,17 @@ async function generateLandingPageHandler(req, res) {
     }
 }
 
-// Preview handler
 async function previewHandler(req, res) {
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
     if (req.method !== 'GET') {
         res.status(405).json({ error: 'Method not allowed' });
         return;
@@ -510,6 +520,9 @@ async function previewHandler(req, res) {
             return;
         }
 
+        console.log('Loading preview for ID:', previewId);
+
+        // Get generation info from our storage
         const generationInfo = generatedLandingPages.get(previewId);
         
         if (!generationInfo) {
@@ -517,21 +530,42 @@ async function previewHandler(req, res) {
             return;
         }
 
-        // Check if the generated files exist
-        const indexPath = path.join(generationInfo.outputDir, 'index.html');
+        const outputDir = generationInfo.outputDir;
+        const indexPath = path.join(outputDir, 'index.html');
         
         if (!fs.existsSync(indexPath)) {
             res.status(404).json({ error: 'Generated files not found' });
             return;
         }
 
-        res.status(200).json({
-            success: true,
-            message: `Preview ready for ${generationInfo.personName}`,
-            previewId: previewId,
-            generatedAt: generationInfo.generatedAt,
-            files: generationInfo.files
-        });
+        // Read the HTML file
+        let htmlContent = fs.readFileSync(indexPath, 'utf8');
+
+        // Update relative paths to work with our static file server
+        const baseUrl = `http://localhost:3000/api/cv/static?previewId=${previewId}&file=`;
+        
+        // Replace CSS and JS references
+        htmlContent = htmlContent.replace(
+            /href="styles\.css"/g, 
+            `href="${baseUrl}styles.css"`
+        );
+        
+        htmlContent = htmlContent.replace(
+            /src="data\.js"/g, 
+            `src="${baseUrl}data.js"`
+        );
+        
+        htmlContent = htmlContent.replace(
+            /src="script\.js"/g, 
+            `src="${baseUrl}script.js"`
+        );
+
+        // Set proper headers
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        
+        console.log('Serving preview HTML for:', generationInfo.personName);
+        res.status(200).send(htmlContent);
 
     } catch (error) {
         console.error('Preview error:', error);
@@ -539,6 +573,194 @@ async function previewHandler(req, res) {
             error: 'Preview failed',
             message: error.message
         });
+    }
+}
+
+// Static file handler for CSS, JS, and other assets
+async function staticFileHandler(req, res) {
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
+    if (req.method !== 'GET') {
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
+    }
+
+    try {
+        const { previewId, file } = req.query;
+        
+        if (!previewId || !file) {
+            res.status(400).json({ error: 'Preview ID and file name are required' });
+            return;
+        }
+
+        console.log('Serving static file:', file, 'for preview:', previewId);
+
+        // Get generation info
+        const generationInfo = generatedLandingPages.get(previewId);
+        
+        if (!generationInfo) {
+            res.status(404).json({ error: 'Preview not found' });
+            return;
+        }
+
+        const filePath = path.join(generationInfo.outputDir, file);
+        
+        if (!fs.existsSync(filePath)) {
+            res.status(404).json({ error: 'File not found' });
+            return;
+        }
+
+        // Set content type based on file extension
+        const ext = path.extname(file).toLowerCase();
+        let contentType = 'text/plain';
+        
+        switch (ext) {
+            case '.css':
+                contentType = 'text/css; charset=utf-8';
+                break;
+            case '.js':
+                contentType = 'application/javascript; charset=utf-8';
+                break;
+            case '.html':
+                contentType = 'text/html; charset=utf-8';
+                break;
+            case '.json':
+                contentType = 'application/json; charset=utf-8';
+                break;
+            case '.png':
+                contentType = 'image/png';
+                break;
+            case '.jpg':
+            case '.jpeg':
+                contentType = 'image/jpeg';
+                break;
+        }
+
+        // Read and serve the file
+        const fileContent = fs.readFileSync(filePath);
+        
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'no-cache');
+        
+        console.log('Served static file:', file, 'type:', contentType);
+        res.status(200).send(fileContent);
+
+    } catch (error) {
+        console.error('Static file error:', error);
+        res.status(500).json({
+            error: 'File serving failed',
+            message: error.message
+        });
+    }
+}
+
+// Download handler - creates and serves a ZIP file
+async function downloadHandler(req, res) {
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
+    if (req.method !== 'GET') {
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
+    }
+
+    try {
+        const { generationId } = req.query;
+        
+        if (!generationId) {
+            res.status(400).json({ error: 'Generation ID is required' });
+            return;
+        }
+
+        console.log('Download requested for generation:', generationId);
+
+        const generationInfo = generatedLandingPages.get(generationId);
+        
+        if (!generationInfo) {
+            res.status(404).json({ error: 'Generation not found' });
+            return;
+        }
+
+        const outputDir = generationInfo.outputDir;
+        
+        if (!fs.existsSync(outputDir)) {
+            res.status(404).json({ error: 'Generated files not found' });
+            return;
+        }
+
+        // Create ZIP file name
+        const personName = generationInfo.personName || 'landing-page';
+        const cleanName = personName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+        const zipFileName = `${cleanName}-landing-page.zip`;
+
+        // Set download headers
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
+        res.setHeader('Cache-Control', 'no-cache');
+
+        // Create ZIP archive
+        const archiver = require('archiver');
+        const archive = archiver('zip', {
+            zlib: { level: 9 }
+        });
+
+        // Handle archive errors
+        archive.on('error', (err) => {
+            console.error('Archive error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Failed to create archive' });
+            }
+        });
+
+        // Pipe archive to response
+        archive.pipe(res);
+
+        // Add files to archive
+        const filesToInclude = ['index.html', 'styles.css', 'script.js', 'data.js'];
+        
+        filesToInclude.forEach(fileName => {
+            const filePath = path.join(outputDir, fileName);
+            if (fs.existsSync(filePath)) {
+                console.log(`Adding ${fileName} to archive`);
+                archive.file(filePath, { name: fileName });
+            }
+        });
+
+        // Add README file
+        const readmePath = path.join(outputDir, 'README.md');
+        if (fs.existsSync(readmePath)) {
+            archive.file(readmePath, { name: 'README.md' });
+        }
+
+        // Finalize the archive
+        console.log('Finalizing archive...');
+        await archive.finalize();
+        
+        console.log(`Download completed: ${zipFileName}`);
+
+    } catch (error) {
+        console.error('Download error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({
+                error: 'Download failed',
+                message: error.message
+            });
+        }
     }
 }
 
@@ -560,7 +782,10 @@ app.get('/api/cv/status', statusHandler);
 // Landing page generation routes
 app.post('/api/cv/generate', generateLandingPageHandler);
 app.get('/api/cv/preview', previewHandler);
+app.get('/api/cv/static', staticFileHandler);
+app.get('/api/cv/download', downloadHandler);
 
+// Update your server startup console output
 app.listen(PORT, () => {
     console.log(`=================================`);
     console.log(`CV Landing Generator API Server`);
@@ -570,6 +795,8 @@ app.listen(PORT, () => {
     console.log(`Upload: POST http://localhost:${PORT}/api/cv/upload`);
     console.log(`Process: POST http://localhost:${PORT}/api/cv/process`);
     console.log(`Generate: POST http://localhost:${PORT}/api/cv/generate`);
+    console.log(`Preview: GET http://localhost:${PORT}/api/cv/preview`);
+    console.log(`Download: GET http://localhost:${PORT}/api/cv/download`);
     console.log(`=================================`);
     console.log(`Gemini API: ${process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
     console.log(`JWT Secret: ${process.env.JWT_SECRET ? '✓ Configured' : '✗ Missing'}`);
