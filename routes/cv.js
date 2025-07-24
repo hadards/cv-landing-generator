@@ -1,482 +1,661 @@
-// File: routes/cv.js
+// routes/cv.js
 const express = require('express');
-const multer = require('multer');
+const router = express.Router();
+const GitHubClient = require('../lib/github-client');
 const fs = require('fs');
 const path = require('path');
-const archiver = require('archiver');
-const jwt = require('jsonwebtoken');
 
-const CVParser = require('../lib/cv-parser-modular');
-const TemplateProcessor = require('../lib/template-processor');
-
-const router = express.Router();
-
-// Initialize services
-const templateProcessor = new TemplateProcessor();
-const cvParser = new CVParser();
-
-// Configure multer for file uploads
-const upload = multer({
-    dest: 'uploads/',
-    limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ];
-        
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only PDF, DOC, and DOCX files are allowed.'));
-        }
-    }
-});
-
-// Middleware to verify JWT token
-const verifyToken = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const token = authHeader.substring(7);
+// Deploy CV as website - POST /api/cv/deploy
+router.post('/deploy', async (req, res) => {
+    const startTime = Date.now();
+    let siteId = null;
     
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (jwtError) {
-        return res.status(401).json({ error: 'Invalid token' });
-    }
-};
+        const { userId, cvData, siteName } = req.body;
 
-// Store uploaded files info (in production, use database)
-const uploadedFiles = new Map();
-const generatedLandingPages = new Map();
-
-// File upload endpoint
-router.post('/upload', verifyToken, upload.single('cvFile'), async (req, res) => {
-    try {
-        const uploadedFile = req.file;
-        
-        if (!uploadedFile) {
-            return res.status(400).json({ error: 'No file uploaded' });
-        }
-
-        const fileInfo = {
-            id: Date.now().toString(),
-            originalName: uploadedFile.originalname,
-            filename: uploadedFile.filename,
-            path: uploadedFile.path,
-            size: uploadedFile.size,
-            mimetype: uploadedFile.mimetype,
-            uploadedAt: new Date().toISOString(),
-            userId: req.user.userId,
-            status: 'uploaded'
-        };
-
-        // Store file info
-        uploadedFiles.set(fileInfo.id, fileInfo);
-
-        res.status(200).json({
-            success: true,
-            message: 'File uploaded successfully',
-            file: fileInfo
-        });
-
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({
-            error: 'Upload failed',
-            message: error.message
-        });
-    }
-});
-
-// Process CV file endpoint
-router.post('/process', verifyToken, async (req, res) => {
-    try {
-        const { fileId } = req.body;
-        
-        if (!fileId) {
-            return res.status(400).json({ error: 'File ID is required' });
-        }
-
-        const fileInfo = uploadedFiles.get(fileId);
-        if (!fileInfo) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-
-        console.log('Processing CV file:', fileInfo.originalName);
-
-        // Extract text from the uploaded file
-        console.log('Extracting text from file...');
-        const extractedText = await cvParser.extractTextFromFile(fileInfo.path, fileInfo.mimetype);
-        console.log('Extracted text length:', extractedText.length);
-
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('No text could be extracted from the file');
-        }
-
-        // Structure the data with AI processing
-        console.log('Processing with Modular CV Parser...');
-        const structuredData = await cvParser.processCV(extractedText);
-        console.log('Structured data generated for:', structuredData.personalInfo?.name);
-
-        // Validate the structured data
-        if (!structuredData.personalInfo?.name) {
-            throw new Error('Unable to extract name from CV');
-        }
-
-        // Update file status
-        fileInfo.status = 'processed';
-        fileInfo.processedAt = new Date().toISOString();
-        fileInfo.extractedText = extractedText;
-        fileInfo.structuredData = structuredData;
-        uploadedFiles.set(fileId, fileInfo);
-
-        res.status(200).json({
-            success: true,
-            message: 'CV processed successfully',
-            extractedText: extractedText,
-            structuredData: structuredData,
-            fileId: fileId,
-            processedAt: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('CV processing error:', error);
-        res.status(500).json({
-            error: 'CV processing failed',
-            message: error.message
-        });
-    }
-});
-
-// Get file status endpoint
-router.get('/status', async (req, res) => {
-    try {
-        const { fileId } = req.query;
-        
-        if (!fileId) {
-            return res.status(400).json({ error: 'File ID is required' });
-        }
-
-        const fileInfo = uploadedFiles.get(fileId);
-        if (!fileInfo) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-
-        res.status(200).json({
-            success: true,
-            file: fileInfo
-        });
-
-    } catch (error) {
-        console.error('Status check error:', error);
-        res.status(500).json({
-            error: 'Status check failed',
-            message: error.message
-        });
-    }
-});
-
-// Generate landing page endpoint
-router.post('/generate', verifyToken, async (req, res) => {
-    try {
-        const { structuredData } = req.body;
-        
-        if (!structuredData) {
-            return res.status(400).json({ error: 'Structured CV data is required' });
-        }
-
-        // Validate that this is real CV data, not mock
-        if (!structuredData.personalInfo?.name || !structuredData.personalInfo?.email) {
-            return res.status(400).json({ error: 'Invalid CV data - missing required personal information' });
-        }
-
-        console.log('Generating landing page for:', structuredData.personalInfo.name);
-        console.log('User ID:', req.user.userId);
-
-        // Generate the landing page using real CV data
-        const outputDir = path.join(__dirname, '../generated', req.user.userId, Date.now().toString());
-        const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
-
-        // Store generation info
-        const generationInfo = {
-            id: Date.now().toString(),
-            userId: req.user.userId,
-            outputDir: outputDir,
-            generatedAt: new Date().toISOString(),
-            files: result.files,
-            cvData: structuredData,
-            personName: structuredData.personalInfo.name
-        };
-
-        // Store for later retrieval
-        generatedLandingPages.set(generationInfo.id, generationInfo);
-
-        console.log('Landing page generated successfully for:', structuredData.personalInfo.name);
-
-        res.status(200).json({
-            success: true,
-            message: `Landing page generated successfully for ${structuredData.personalInfo.name}`,
-            generation: generationInfo,
-            previewUrl: `/preview/${generationInfo.id}`
-        });
-
-    } catch (error) {
-        console.error('Landing page generation error:', error);
-        res.status(500).json({
-            error: 'Generation failed',
-            message: error.message
-        });
-    }
-});
-
-// Preview landing page endpoint
-router.get('/preview', async (req, res) => {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    try {
-        const { previewId } = req.query;
-        
-        if (!previewId) {
-            return res.status(400).json({ error: 'Preview ID is required' });
-        }
-
-        console.log('Loading preview for ID:', previewId);
-
-        // Get generation info from our storage
-        const generationInfo = generatedLandingPages.get(previewId);
-        
-        if (!generationInfo) {
-            return res.status(404).json({ error: 'Preview not found' });
-        }
-
-        const outputDir = generationInfo.outputDir;
-        const indexPath = path.join(outputDir, 'index.html');
-        
-        if (!fs.existsSync(indexPath)) {
-            return res.status(404).json({ error: 'Generated files not found' });
-        }
-
-        // Read the HTML file
-        let htmlContent = fs.readFileSync(indexPath, 'utf8');
-
-        // Update relative paths to work with our static file server
-        const baseUrl = `http://localhost:3000/api/cv/static?previewId=${previewId}&file=`;
-        
-        // Replace CSS and JS references
-        htmlContent = htmlContent.replace(
-            /href="styles\.css"/g, 
-            `href="${baseUrl}styles.css"`
-        );
-        
-        htmlContent = htmlContent.replace(
-            /src="data\.js"/g, 
-            `src="${baseUrl}data.js"`
-        );
-        
-        htmlContent = htmlContent.replace(
-            /src="script\.js"/g, 
-            `src="${baseUrl}script.js"`
-        );
-
-        // Set proper headers
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache');
-        
-        console.log('Serving preview HTML for:', generationInfo.personName);
-        res.status(200).send(htmlContent);
-
-    } catch (error) {
-        console.error('Preview error:', error);
-        res.status(500).json({
-            error: 'Preview failed',
-            message: error.message
-        });
-    }
-});
-
-// Static file handler for CSS, JS, and other assets
-router.get('/static', async (req, res) => {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    try {
-        const { previewId, file } = req.query;
-        
-        if (!previewId || !file) {
-            return res.status(400).json({ error: 'Preview ID and file name are required' });
-        }
-
-        console.log('Serving static file:', file, 'for preview:', previewId);
-
-        // Get generation info
-        const generationInfo = generatedLandingPages.get(previewId);
-        
-        if (!generationInfo) {
-            return res.status(404).json({ error: 'Preview not found' });
-        }
-
-        const filePath = path.join(generationInfo.outputDir, file);
-        
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-
-        // Set content type based on file extension
-        const ext = path.extname(file).toLowerCase();
-        let contentType = 'text/plain';
-        
-        switch (ext) {
-            case '.css':
-                contentType = 'text/css; charset=utf-8';
-                break;
-            case '.js':
-                contentType = 'application/javascript; charset=utf-8';
-                break;
-            case '.html':
-                contentType = 'text/html; charset=utf-8';
-                break;
-            case '.json':
-                contentType = 'application/json; charset=utf-8';
-                break;
-            case '.png':
-                contentType = 'image/png';
-                break;
-            case '.jpg':
-            case '.jpeg':
-                contentType = 'image/jpeg';
-                break;
-        }
-
-        // Read and serve the file
-        const fileContent = fs.readFileSync(filePath);
-        
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'no-cache');
-        
-        console.log('Served static file:', file, 'type:', contentType);
-        res.status(200).send(fileContent);
-
-    } catch (error) {
-        console.error('Static file error:', error);
-        res.status(500).json({
-            error: 'File serving failed',
-            message: error.message
-        });
-    }
-});
-
-// Download handler - creates and serves a ZIP file
-router.get('/download', async (req, res) => {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    try {
-        const { generationId } = req.query;
-        
-        if (!generationId) {
-            return res.status(400).json({ error: 'Generation ID is required' });
-        }
-
-        console.log('Download requested for generation:', generationId);
-
-        const generationInfo = generatedLandingPages.get(generationId);
-        
-        if (!generationInfo) {
-            return res.status(404).json({ error: 'Generation not found' });
-        }
-
-        const outputDir = generationInfo.outputDir;
-        
-        if (!fs.existsSync(outputDir)) {
-            return res.status(404).json({ error: 'Generated files not found' });
-        }
-
-        // Create ZIP file name
-        const personName = generationInfo.personName || 'landing-page';
-        const cleanName = personName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-        const zipFileName = `${cleanName}-landing-page.zip`;
-
-        // Set download headers
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
-        res.setHeader('Cache-Control', 'no-cache');
-
-        // Create ZIP archive
-        const archive = archiver('zip', {
-            zlib: { level: 9 }
-        });
-
-        // Handle archive errors
-        archive.on('error', (err) => {
-            console.error('Archive error:', err);
-            if (!res.headersSent) {
-                res.status(500).json({ error: 'Failed to create archive' });
-            }
-        });
-
-        // Pipe archive to response
-        archive.pipe(res);
-
-        // Add files to archive
-        const filesToInclude = ['index.html', 'styles.css', 'script.js', 'data.js'];
-        
-        filesToInclude.forEach(fileName => {
-            const filePath = path.join(outputDir, fileName);
-            if (fs.existsSync(filePath)) {
-                console.log(`Adding ${fileName} to archive`);
-                archive.file(filePath, { name: fileName });
-            }
-        });
-
-        // Add README file
-        const readmePath = path.join(outputDir, 'README.md');
-        if (fs.existsSync(readmePath)) {
-            archive.file(readmePath, { name: 'README.md' });
-        }
-
-        // Finalize the archive
-        console.log('Finalizing archive...');
-        await archive.finalize();
-        
-        console.log(`Download completed: ${zipFileName}`);
-
-    } catch (error) {
-        console.error('Download error:', error);
-        if (!res.headersSent) {
-            res.status(500).json({
-                error: 'Download failed',
-                message: error.message
+        if (!userId || !cvData || !siteName) {
+            return res.status(400).json({ 
+                error: 'User ID, CV data, and site name are required' 
             });
         }
+
+        console.log('🚀 Starting deployment for user:', userId, 'site:', siteName);
+
+        // Import database
+        const Database = require('../lib/database');
+        const database = new Database();
+
+        // Check if user has GitHub connection
+        if (!global.githubTokens || !global.githubTokens[userId]) {
+            return res.status(400).json({ 
+                error: 'GitHub connection required. Please connect your GitHub account first.' 
+            });
+        }
+
+        const githubToken = Buffer.from(global.githubTokens[userId].token, 'base64').toString();
+        const githubClient = new GitHubClient(githubToken);
+
+        // Generate unique repository name
+        const timestamp = Date.now();
+        const cleanSiteName = siteName.toLowerCase().replace(/[^a-z0-9-]/g, '-').substring(0, 50);
+        const repoName = `${cleanSiteName}-${timestamp}`;
+
+        console.log('📝 Repository name:', repoName);
+
+        // Step 1: Create site record in database
+        console.log('💾 Creating site record in database...');
+        try {
+            const siteData = {
+                user_id: userId,
+                site_name: siteName,
+                repo_name: repoName,
+                deployment_status: 'pending',
+                cv_data: cvData
+            };
+            
+            const site = await database.createSite(siteData);
+            siteId = site.id;
+            console.log('✅ Site record created with ID:', siteId);
+            
+            // Log deployment start
+            await database.logOperation(userId, 'site_deployment_start', 'pending', null, 0);
+            
+        } catch (dbError) {
+            console.warn('⚠️ Database not available, continuing without storage:', dbError.message);
+            // Continue deployment even if database fails
+        }
+
+        // Step 2: Update status to deploying
+        if (siteId) {
+            try {
+                await database.updateSiteDeploymentStatus(siteId, 'deploying');
+            } catch (dbError) {
+                console.warn('⚠️ Failed to update status to deploying:', dbError.message);
+            }
+        }
+
+        // Step 3: Create GitHub repository
+        console.log('🏗️ Creating GitHub repository...');
+        const repo = await githubClient.createRepository(
+            repoName, 
+            `Landing page for ${cvData.personalInfo?.name || 'Professional'} - Generated by CV Landing Generator`
+        );
+
+        // Step 4: Update database with GitHub URL
+        if (siteId) {
+            try {
+                await database.updateSiteDeploymentStatus(siteId, 'deploying', { 
+                    github_url: repo.htmlUrl 
+                });
+            } catch (dbError) {
+                console.warn('⚠️ Failed to update GitHub URL:', dbError.message);
+            }
+        }
+
+        // Step 5: Generate landing page files
+        console.log('📄 Generating landing page files...');
+        const files = await generateLandingPageFiles(cvData);
+
+        // Step 6: Upload files to repository  
+        console.log('📤 Uploading files to GitHub...');
+        await githubClient.uploadFiles(repoName, files);
+
+        // Step 7: Enable GitHub Pages
+        console.log('🌐 Enabling GitHub Pages...');
+        const pagesInfo = await githubClient.enableGitHubPages(repoName);
+        
+        // Generate the expected Pages URL
+        const username = global.githubTokens[userId].username;
+        const pagesUrl = `https://${username}.github.io/${repoName}`;
+
+        // Step 8: Update database with final deployment status
+        if (siteId) {
+            try {
+                await database.updateSiteDeploymentStatus(siteId, 'deployed', {
+                    github_url: repo.htmlUrl,
+                    pages_url: pagesUrl
+                });
+                
+                // Log successful deployment
+                const processingTime = Date.now() - startTime;
+                await database.logOperation(userId, 'site_deployment_complete', 'success', null, processingTime);
+                
+                console.log('✅ Database updated with deployment results');
+            } catch (dbError) {
+                console.warn('⚠️ Failed to update final deployment status:', dbError.message);
+            }
+        }
+
+        console.log('✅ Deployment completed successfully!');
+        console.log('   Repository:', repo.htmlUrl);
+        console.log('   Pages URL:', pagesUrl);
+
+        const processingTime = Date.now() - startTime;
+        console.log(`⏱️ Total deployment time: ${processingTime}ms`);
+
+        res.status(200).json({
+            success: true,
+            siteId: siteId,
+            repoName: repoName,
+            githubUrl: repo.htmlUrl,
+            pagesUrl: pagesUrl,
+            deploymentTime: processingTime,
+            message: 'Site deployed successfully! GitHub Pages may take 2-3 minutes to become available.'
+        });
+
+    } catch (error) {
+        console.error('❌ Deployment failed:', error);
+
+        // Update site status to failed if we have a site ID
+        if (siteId) {
+            try {
+                const Database = require('../lib/database');
+                const database = new Database();
+                await database.updateSiteDeploymentStatus(siteId, 'failed');
+                
+                // Log failed deployment
+                const processingTime = Date.now() - startTime;
+                await database.logOperation(userId, 'site_deployment_complete', 'failed', error.message, processingTime);
+            } catch (dbError) {
+                console.warn('⚠️ Failed to update failed status:', dbError.message);
+            }
+        }
+
+        const processingTime = Date.now() - startTime;
+        console.log(`⏱️ Failed deployment time: ${processingTime}ms`);
+
+        res.status(500).json({
+            error: 'Deployment failed',
+            details: error.message,
+            deploymentTime: processingTime
+        });
     }
 });
+
+// Helper function to generate all landing page files
+async function generateLandingPageFiles(cvData) {
+    console.log('📝 Generating landing page files...');
+    
+    const files = {};
+    
+    // Generate data.js with CV data
+    files['data.js'] = `// Generated CV Data for ${cvData.personalInfo?.name || 'Professional'}
+// Generated on: ${new Date().toISOString()}
+
+const cvData = ${JSON.stringify(cvData, null, 2)};
+
+// Make data available globally
+if (typeof window !== 'undefined') {
+    window.cvData = cvData;
+}
+
+// Export for Node.js environment
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = cvData;
+}
+`;
+
+    // Generate index.html
+    files['index.html'] = generateIndexHTML(cvData);
+    
+    // Generate styles.css
+    files['styles.css'] = generateCSS();
+    
+    // Generate script.js
+    files['script.js'] = generateJavaScript();
+    
+    // Generate README.md
+    files['README.md'] = generateREADME(cvData);
+    
+    // Generate .gitignore
+    files['.gitignore'] = `# Dependencies
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+
+# Environment files  
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+`;
+
+    console.log('✅ Generated files:', Object.keys(files));
+    return files;
+}
+
+// Generate index.html
+function generateIndexHTML(cvData) {
+    const name = cvData.personalInfo?.name || 'Professional';
+    const title = cvData.personalInfo?.currentTitle || 'Professional';
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${name} - ${title}</title>
+    <meta name="description" content="Professional landing page for ${name}">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+        <!-- Header -->
+        <header class="relative overflow-hidden py-20">
+            <div class="container mx-auto px-6 text-center">
+                <div class="profile-picture-container mb-8">
+                    <div id="profile-picture" class="w-32 h-32 bg-gray-600 rounded-full mx-auto"></div>
+                </div>
+                <h1 id="name" class="text-5xl font-bold text-white mb-4">${name}</h1>
+                <p id="title" class="text-2xl text-blue-300 mb-6">${title}</p>
+                <p id="summary" class="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">${cvData.personalInfo?.summary || ''}</p>
+                
+                <div class="flex justify-center space-x-4 mt-8">
+                    <button id="contact-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                        Contact Me
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-6 py-12">
+            <!-- Experience Section -->
+            <section id="experience-section" class="mb-16">
+                <h2 class="text-3xl font-bold text-white mb-8 text-center">Experience</h2>
+                <div id="experience-container" class="space-y-8"></div>
+            </section>
+
+            <!-- Skills Section -->
+            <section id="skills-section" class="mb-16">
+                <h2 class="text-3xl font-bold text-white mb-8 text-center">Skills</h2>
+                <div id="skills-container" class="grid grid-cols-1 md:grid-cols-2 gap-8"></div>
+            </section>
+
+            <!-- Education Section -->
+            <section id="education-section" class="mb-16">
+                <h2 class="text-3xl font-bold text-white mb-8 text-center">Education</h2>
+                <div id="education-container" class="space-y-6"></div>
+            </section>
+
+            <!-- Projects Section -->
+            <section id="projects-section" class="mb-16">
+                <h2 class="text-3xl font-bold text-white mb-8 text-center">Projects</h2>
+                <div id="projects-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-900 py-8">
+            <div class="container mx-auto px-6 text-center">
+                <p class="text-gray-400">© 2024 <span id="footer-name">${name}</span>. All rights reserved.</p>
+                <p class="text-gray-500 text-sm mt-2">Generated with CV Landing Generator</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>`;
+}
+
+// Generate CSS (basic Tailwind-like styles)
+function generateCSS() {
+    return `/* Generated CSS for CV Landing Page */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.min-h-screen { min-height: 100vh; }
+.bg-gradient-to-br { background: linear-gradient(to bottom right, #1f2937, #1e40af, #7c3aed); }
+.text-center { text-align: center; }
+.text-white { color: white; }
+.text-blue-300 { color: #93c5fd; }
+.text-gray-300 { color: #d1d5db; }
+.text-gray-400 { color: #9ca3af; }
+.text-gray-500 { color: #6b7280; }
+
+.text-5xl { font-size: 3rem; }
+.text-3xl { font-size: 1.875rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-xl { font-size: 1.25rem; }
+.text-sm { font-size: 0.875rem; }
+
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+
+.w-32 { width: 8rem; }
+.h-32 { height: 8rem; }
+.rounded-full { border-radius: 50%; }
+.rounded-lg { border-radius: 0.5rem; }
+
+.mx-auto { margin-left: auto; margin-right: auto; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mb-16 { margin-bottom: 4rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-8 { margin-top: 2rem; }
+
+.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+.py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+.py-20 { padding-top: 5rem; padding-bottom: 5rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.px-8 { padding-left: 2rem; padding-right: 2rem; }
+
+.bg-blue-600 { background-color: #2563eb; }
+.bg-blue-700 { background-color: #1d4ed8; }
+.bg-gray-600 { background-color: #4b5563; }
+.bg-gray-900 { background-color: #111827; }
+
+.hover\\:bg-blue-700:hover { background-color: #1d4ed8; }
+
+.flex { display: flex; }
+.grid { display: grid; }
+.justify-center { justify-content: center; }
+.space-x-4 > * + * { margin-left: 1rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+.space-y-8 > * + * { margin-top: 2rem; }
+
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.gap-8 { gap: 2rem; }
+
+.max-w-3xl { max-width: 48rem; }
+.leading-relaxed { line-height: 1.625; }
+
+.transition-colors { transition-property: color, background-color; transition-duration: 0.15s; }
+
+@media (min-width: 768px) {
+    .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px) {
+    .lg\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Custom styles */
+.experience-card, .skill-card, .education-card, .project-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    color: white;
+}
+
+.skill-tag {
+    background: rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    display: inline-block;
+    margin: 0.25rem;
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    outline: none;
+}
+
+button:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+`;
+}
+
+// Generate JavaScript
+function generateJavaScript() {
+    return `// CV Landing Page JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Loading CV data...');
+    
+    if (typeof cvData === 'undefined') {
+        console.error('CV data not found!');
+        return;
+    }
+
+    // Render personal info
+    renderPersonalInfo();
+    
+    // Render sections
+    renderExperience();
+    renderSkills();
+    renderEducation();  
+    renderProjects();
+    
+    // Setup contact button
+    setupContactButton();
+    
+    console.log('CV landing page loaded successfully!');
+});
+
+function renderPersonalInfo() {
+    const personalInfo = cvData.personalInfo || {};
+    
+    // Update name and title (already in HTML, but ensure they're set)
+    const nameEl = document.getElementById('name');
+    const titleEl = document.getElementById('title');
+    const summaryEl = document.getElementById('summary');
+    
+    if (nameEl) nameEl.textContent = personalInfo.name || 'Professional';
+    if (titleEl) titleEl.textContent = personalInfo.currentTitle || 'Professional';
+    if (summaryEl) summaryEl.textContent = personalInfo.summary || '';
+    
+    // Handle profile picture
+    const profilePictureEl = document.getElementById('profile-picture');
+    if (profilePictureEl && personalInfo.profilePicture) {
+        profilePictureEl.style.backgroundImage = \`url(\${personalInfo.profilePicture})\`;
+        profilePictureEl.style.backgroundSize = 'cover';
+        profilePictureEl.style.backgroundPosition = 'center';
+    }
+}
+
+function renderExperience() {
+    const experienceContainer = document.getElementById('experience-container');
+    const experience = cvData.experience || [];
+    
+    if (!experienceContainer || experience.length === 0) {
+        const section = document.getElementById('experience-section');
+        if (section) section.style.display = 'none';
+        return;
+    }
+    
+    experienceContainer.innerHTML = experience.map(job => \`
+        <div class="experience-card">
+            <h3 class="text-xl font-semibold mb-2">\${job.title}</h3>
+            <p class="text-blue-300 font-medium mb-1">\${job.company}</p>
+            <p class="text-gray-300 text-sm mb-3">\${job.startDate} - \${job.endDate || 'Present'}</p>
+            <p class="text-gray-200 mb-3">\${job.description || ''}</p>
+            \${job.achievements && job.achievements.length > 0 ? \`
+                <ul class="text-gray-200 text-sm space-y-1">
+                    \${job.achievements.map(achievement => \`<li>• \${achievement}</li>\`).join('')}
+                </ul>
+            \` : ''}
+        </div>
+    \`).join('');
+}
+
+function renderSkills() {
+    const skillsContainer = document.getElementById('skills-container');
+    const skills = cvData.skills || {};
+    
+    if (!skillsContainer || (!skills.technical?.length && !skills.soft?.length)) {
+        const section = document.getElementById('skills-section');
+        if (section) section.style.display = 'none';
+        return;
+    }
+    
+    let skillsHTML = '';
+    
+    if (skills.technical && skills.technical.length > 0) {
+        skillsHTML += \`
+            <div class="skill-card">
+                <h3 class="text-lg font-semibold text-white mb-3">Technical Skills</h3>
+                <div class="flex flex-wrap">
+                    \${skills.technical.map(skill => \`<span class="skill-tag">\${skill}</span>\`).join('')}
+                </div>
+            </div>
+        \`;
+    }
+    
+    if (skills.soft && skills.soft.length > 0) {
+        skillsHTML += \`
+            <div class="skill-card">
+                <h3 class="text-lg font-semibold text-white mb-3">Soft Skills</h3>
+                <div class="flex flex-wrap">
+                    \${skills.soft.map(skill => \`<span class="skill-tag">\${skill}</span>\`).join('')}
+                </div>
+            </div>
+        \`;
+    }
+    
+    skillsContainer.innerHTML = skillsHTML;
+}
+
+function renderEducation() {
+    const educationContainer = document.getElementById('education-container');
+    const education = cvData.education || [];
+    
+    if (!educationContainer || education.length === 0) {
+        const section = document.getElementById('education-section');
+        if (section) section.style.display = 'none';
+        return;
+    }
+    
+    educationContainer.innerHTML = education.map(edu => \`
+        <div class="education-card">
+            <h3 class="text-lg font-semibold text-white mb-2">\${edu.degree}</h3>
+            <p class="text-blue-300 font-medium mb-1">\${edu.institution}</p>
+            <p class="text-gray-300 text-sm">\${edu.graduationDate}</p>
+        </div>
+    \`).join('');
+}
+
+function renderProjects() {
+    const projectsContainer = document.getElementById('projects-container');
+    const projects = cvData.projects || [];
+    
+    if (!projectsContainer || projects.length === 0) {
+        const section = document.getElementById('projects-section');
+        if (section) section.style.display = 'none';
+        return;
+    }
+    
+    projectsContainer.innerHTML = projects.map(project => \`
+        <div class="project-card">
+            <h3 class="text-lg font-semibold text-white mb-2">\${project.name}</h3>
+            <p class="text-gray-200 text-sm mb-3">\${project.description}</p>
+            \${project.technologies && project.technologies.length > 0 ? \`
+                <div class="mb-3">
+                    <div class="flex flex-wrap">
+                        \${project.technologies.map(tech => \`<span class="skill-tag">\${tech}</span>\`).join('')}
+                    </div>
+                </div>
+            \` : ''}
+            \${project.url ? \`
+                <a href="\${project.url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 font-medium text-sm">
+                    View Project →
+                </a>
+            \` : ''}
+        </div>
+    \`).join('');
+}
+
+function setupContactButton() {
+    const contactBtn = document.getElementById('contact-btn');
+    const personalInfo = cvData.personalInfo || {};
+    
+    if (contactBtn && personalInfo.email) {
+        contactBtn.addEventListener('click', function() {
+            window.location.href = \`mailto:\${personalInfo.email}\`;
+        });
+    }
+}`;
+}
+
+// Generate README
+function generateREADME(cvData) {
+    const name = cvData.personalInfo?.name || 'Professional';
+    
+    return `# ${name} - Professional Landing Page
+
+This is a professional landing page automatically generated from CV data.
+
+## 🌐 Live Site
+This site is hosted on GitHub Pages and should be accessible at the repository's Pages URL.
+
+## 📋 About
+This landing page showcases:
+- Professional experience
+- Technical and soft skills  
+- Education background
+- Notable projects
+- Contact information
+
+## 🛠️ Technology Stack
+- **HTML5** - Structure and content
+- **CSS3** - Styling and responsive design
+- **Vanilla JavaScript** - Dynamic content rendering
+- **GitHub Pages** - Hosting and deployment
+
+## 🚀 Features
+- ✅ Fully responsive design
+- ✅ Professional dark theme
+- ✅ Smooth animations and transitions
+- ✅ Mobile-optimized layout
+- ✅ Fast loading times
+- ✅ SEO optimized
+
+## 📱 Responsive Design
+This site looks great on:
+- 📱 Mobile devices
+- 📱 Tablets  
+- 💻 Desktop computers
+- 🖥️ Large screens
+
+## 🔧 Customization
+This site is generated automatically, but you can customize it by:
+1. Editing the \`data.js\` file to update your information
+2. Modifying \`styles.css\` to change the appearance
+3. Updating \`script.js\` to add new functionality
+
+## 📞 Contact
+${cvData.personalInfo?.email ? `📧 Email: ${cvData.personalInfo.email}` : ''}
+${cvData.personalInfo?.phone ? `📱 Phone: ${cvData.personalInfo.phone}` : ''}
+${cvData.personalInfo?.location ? `📍 Location: ${cvData.personalInfo.location}` : ''}
+
+---
+
+*Generated on ${new Date().toLocaleDateString()} using CV Landing Generator*
+*Deployed automatically to GitHub Pages*
+`;
+}
 
 module.exports = router;

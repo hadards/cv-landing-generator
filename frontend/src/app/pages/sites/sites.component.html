@@ -1,0 +1,138 @@
+<div class="min-h-screen bg-gray-50 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">My Landing Pages</h1>
+      <p class="mt-2 text-gray-600">Manage your deployed CV landing pages</p>
+    </div>
+
+    <!-- GitHub Connection Status -->
+    <div *ngIf="!hasGitHubConnection" class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-blue-800">
+              Connect your GitHub account to deploy landing pages automatically
+            </p>
+          </div>
+        </div>
+        <button
+          (click)="connectGitHub()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          Connect GitHub
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+      <p class="mt-4 text-gray-600">Loading your sites...</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error && !loading" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+      <p class="text-red-800">{{ error }}</p>
+      <button
+        (click)="loadSites()"
+        class="mt-2 text-red-600 hover:text-red-800 font-medium">
+        Try Again
+      </button>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!loading && sites.length === 0 && !error" class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900">No landing pages yet</h3>
+      <p class="mt-1 text-sm text-gray-500">Get started by creating your first landing page from your CV.</p>
+      <div class="mt-6">
+        <button
+          (click)="createNewSite()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          Create Landing Page
+        </button>
+      </div>
+    </div>
+
+    <!-- Sites Grid -->
+    <div *ngIf="!loading && sites.length > 0" class="space-y-6">
+      
+      <!-- Create New Button -->
+      <div class="flex justify-end">
+        <button
+          (click)="createNewSite()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          + New Landing Page
+        </button>
+      </div>
+
+      <!-- Sites List -->
+      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div *ngFor="let site of sites" class="bg-white rounded-lg shadow-md overflow-hidden">
+          
+          <!-- Site Header -->
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 truncate">{{ site.site_name }}</h3>
+              <span [class]="'px-2 py-1 text-xs font-medium rounded-full ' + getStatusClass(site.deployment_status)">
+                {{ getStatusText(site.deployment_status) }}
+              </span>
+            </div>
+
+            <p class="text-sm text-gray-500 mb-4">{{ site.repo_name }}</p>
+
+            <!-- Site Links -->
+            <div class="space-y-2 mb-4">
+              <a *ngIf="site.pages_url && site.deployment_status === 'deployed'" 
+                 [href]="site.pages_url" 
+                 target="_blank"
+                 class="flex items-center text-blue-600 hover:text-blue-800 text-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+                View Live Site
+              </a>
+
+              <a *ngIf="site.github_url" 
+                 [href]="site.github_url" 
+                 target="_blank"
+                 class="flex items-center text-gray-600 hover:text-gray-800 text-sm">
+                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                View Repository
+              </a>
+            </div>
+
+            <!-- Site Meta -->
+            <div class="text-xs text-gray-500">
+              Created {{ formatDate(site.created_at) }}
+            </div>
+          </div>
+
+          <!-- Site Actions -->
+          <div class="bg-gray-50 px-6 py-3 flex justify-between items-center">
+            <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+              Update
+            </button>
+            <button 
+              (click)="deleteSite(site)"
+              class="text-red-600 hover:text-red-800 text-sm font-medium">
+              Delete
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

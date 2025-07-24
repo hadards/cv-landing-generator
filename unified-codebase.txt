@@ -1,5 +1,5 @@
 ﻿CV LANDING PAGE GENERATOR - UNIFIED CODEBASE
-Generated: 07/18/2025 15:03:45
+Generated: 07/24/2025 17:22:20
 Project Root: C:\Coding\cv-landing-generator
 ========================================
 
@@ -10,19 +10,12 @@ PATH: C:\Coding\cv-landing-generator\.
 
 --------------------------------------------------------------------------------
 FILE: server.js
-SIZE: 26752 bytes (26.1 KB)
+SIZE: 3204 bytes (3.1 KB)
 --------------------------------------------------------------------------------
 // File: server.js
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require('google-auth-library');
-const multer = require('multer');
-const fs = require('fs');
 const path = require('path');
-const archiver = require('archiver');
-const CVParser = require('./lib/cv-parser-modular');
-const TemplateProcessor = require('./lib/template-processor');
 require('dotenv').config();
 
 const app = express();
@@ -39,37 +32,16 @@ if (!process.env.JWT_SECRET) {
     process.exit(1);
 }
 
-const templateProcessor = new TemplateProcessor();
-const cvParser = new CVParser();
-
+// Global middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Configure multer for file uploads
-const upload = multer({
-    dest: 'uploads/',
-    limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ];
-        
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only PDF, DOC, and DOCX files are allowed.'));
-        }
-    }
-});
-
 // Create required directories
 const uploadsDir = path.join(__dirname, 'uploads');
 const generatedDir = path.join(__dirname, 'generated');
+const fs = require('fs');
+
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -77,729 +49,46 @@ if (!fs.existsSync(generatedDir)) {
     fs.mkdirSync(generatedDir, { recursive: true });
 }
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Import route modules
+const healthRoutes = require('./routes/health');
+const authRoutes = require('./routes/auth');
+const cvRoutes = require('./routes/cv');
+const sitesRouter = require('./routes/sites');
+const githubRouter = require('./routes/github');
 
-// Store uploaded files info (in production, use database)
-const uploadedFiles = new Map();
-const generatedLandingPages = new Map();
+// Mount routes
+app.use('/api', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/cv', cvRoutes);
+app.use('/api/sites', sitesRouter);
+app.use('/api/github', githubRouter);
 
-// File upload handler
-async function uploadHandler(req, res) {
-    if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'Authentication required' });
-            return;
-        }
-
-        const token = authHeader.substring(7);
-        
-        try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            
-            const uploadedFile = req.file;
-            
-            if (!uploadedFile) {
-                res.status(400).json({ error: 'No file uploaded' });
-                return;
-            }
-
-            const fileInfo = {
-                id: Date.now().toString(),
-                originalName: uploadedFile.originalname,
-                filename: uploadedFile.filename,
-                path: uploadedFile.path,
-                size: uploadedFile.size,
-                mimetype: uploadedFile.mimetype,
-                uploadedAt: new Date().toISOString(),
-                userId: decoded.userId,
-                status: 'uploaded'
-            };
-
-            // Store file info
-            uploadedFiles.set(fileInfo.id, fileInfo);
-
-            res.status(200).json({
-                success: true,
-                message: 'File uploaded successfully',
-                file: fileInfo
-            });
-
-        } catch (jwtError) {
-            res.status(401).json({ error: 'Invalid token' });
-            return;
-        }
-
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({
-            error: 'Upload failed',
-            message: error.message
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error('Global error handler:', error);
+    
+    if (error.type === 'entity.too.large') {
+        return res.status(413).json({
+            error: 'File too large',
+            message: 'File size exceeds the 50MB limit'
         });
     }
-}
-
-// Process file handler with real CV parsing (NO MOCK DATA)
-async function processFileHandler(req, res) {
-    if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const { fileId } = req.body;
-        
-        if (!fileId) {
-            res.status(400).json({ error: 'File ID is required' });
-            return;
-        }
-
-        const fileInfo = uploadedFiles.get(fileId);
-        if (!fileInfo) {
-            res.status(404).json({ error: 'File not found' });
-            return;
-        }
-
-        console.log('Processing CV file:', fileInfo.originalName);
-
-        // Extract text from the uploaded file
-        console.log('Extracting text from file...');
-        const extractedText = await cvParser.extractTextFromFile(fileInfo.path, fileInfo.mimetype);
-        console.log('Extracted text length:', extractedText.length);
-
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('No text could be extracted from the file');
-        }
-
-        // Structure the data with Gemini AI (REAL PROCESSING - Phase 1)
-        console.log('Processing with Modular CV Parser (Phase 1: Personal Info + About Me)...');
-        const structuredData = await cvParser.processCV(extractedText);
-        console.log('Structured data generated for:', structuredData.personalInfo?.name);
-
-        // Validate the structured data
-        if (!structuredData.personalInfo?.name) {
-            throw new Error('Unable to extract name from CV');
-        }
-
-        // Update file status
-        fileInfo.status = 'processed';
-        fileInfo.processedAt = new Date().toISOString();
-        fileInfo.extractedText = extractedText;
-        fileInfo.structuredData = structuredData;
-        uploadedFiles.set(fileId, fileInfo);
-
-        res.status(200).json({
-            success: true,
-            message: 'CV processed successfully',
-            extractedText: extractedText,
-            structuredData: structuredData,
-            fileId: fileId,
-            processedAt: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('CV processing error:', error);
-        res.status(500).json({
-            error: 'CV processing failed',
-            message: error.message
-        });
-    }
-}
-
-// Status check handler
-async function statusHandler(req, res) {
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const { fileId } = req.query;
-        
-        if (!fileId) {
-            res.status(400).json({ error: 'File ID is required' });
-            return;
-        }
-
-        const fileInfo = uploadedFiles.get(fileId);
-        if (!fileInfo) {
-            res.status(404).json({ error: 'File not found' });
-            return;
-        }
-
-        res.status(200).json({
-            success: true,
-            file: fileInfo
-        });
-
-    } catch (error) {
-        console.error('Status check error:', error);
-        res.status(500).json({
-            error: 'Status check failed',
-            message: error.message
-        });
-    }
-}
-
-// Auth handlers
-async function loginHandler(req, res) {
-    if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const { credential } = req.body;
-
-        if (!credential) {
-            res.status(400).json({ error: 'Google credential is required' });
-            return;
-        }
-
-        // For development, accept mock credential
-        if (credential === 'mock_google_jwt_token_for_testing') {
-            const user = {
-                id: 'mock_user_123',
-                email: 'test@example.com',
-                name: 'Test User',
-                picture: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI4MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VGVzdCBVc2VyPC90ZXh0Pgo8L3N2Zz4K',
-                verified: true
-            };
-
-            const token = jwt.sign(
-                { userId: user.id, email: user.email },
-                process.env.JWT_SECRET,
-                { expiresIn: '7d' }
-            );
-
-            res.status(200).json({
-                success: true,
-                user: user,
-                token: token,
-                message: 'Login successful'
-            });
-        } else {
-            // In production, verify with Google
-            try {
-                const ticket = await client.verifyIdToken({
-                    idToken: credential,
-                    audience: process.env.GOOGLE_CLIENT_ID,
-                });
-
-                const payload = ticket.getPayload();
-                
-                if (!payload) {
-                    res.status(400).json({ error: 'Invalid Google token' });
-                    return;
-                }
-
-                const user = {
-                    id: payload.sub,
-                    email: payload.email,
-                    name: payload.name,
-                    picture: payload.picture,
-                    verified: payload.email_verified
-                };
-
-                const token = jwt.sign(
-                    { userId: user.id, email: user.email },
-                    process.env.JWT_SECRET,
-                    { expiresIn: '7d' }
-                );
-
-                res.status(200).json({
-                    success: true,
-                    user: user,
-                    token: token,
-                    message: 'Login successful'
-                });
-            } catch (googleError) {
-                res.status(400).json({ error: 'Invalid Google credential' });
-            }
-        }
-
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({
-            error: 'Authentication failed',
-            message: error.message
-        });
-    }
-}
-
-async function logoutHandler(req, res) {
-    if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        res.status(200).json({
-            success: true,
-            message: 'Logout successful'
-        });
-    } catch (error) {
-        console.error('Logout error:', error);
-        res.status(500).json({
-            error: 'Logout failed',
-            message: error.message
-        });
-    }
-}
-
-async function userHandler(req, res) {
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const authHeader = req.headers.authorization;
-        
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'No token provided' });
-            return;
-        }
-
-        const token = authHeader.substring(7);
-        
-        try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            
-            res.status(200).json({
-                success: true,
-                user: {
-                    id: decoded.userId,
-                    email: decoded.email,
-                    name: 'Test User',
-                    picture: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI4MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VGVzdCBVc2VyPC90ZXh0Pgo8L3N2Zz4K'
-                }
-            });
-        } catch (jwtError) {
-            res.status(401).json({ error: 'Invalid token' });
-            return;
-        }
-
-    } catch (error) {
-        console.error('User info error:', error);
-        res.status(500).json({
-            error: 'Failed to get user info',
-            message: error.message
-        });
-    }
-}
-
-async function healthHandler(req, res) {
-    try {
-        res.status(200).json({
-            status: 'healthy',
-            message: 'CV Landing Generator API is running',
-            timestamp: new Date().toISOString(),
-            version: '1.0.0',
-            geminiConfigured: !!process.env.GEMINI_API_KEY
-        });
-    } catch (error) {
-        console.error('Health check error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Internal server error'
-        });
-    }
-}
-
-async function testHandler(req, res) {
-    try {
-        const { method, query, body } = req;
-
-        res.status(200).json({
-            message: 'Test endpoint working!',
-            requestMethod: method,
-            queryParams: query,
-            requestBody: body,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        console.error('Test endpoint error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Internal server error',
-            error: error.message
-        });
-    }
-}
-
-// Generate landing page handler - USE REAL CV DATA
-async function generateLandingPageHandler(req, res) {
-    if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        // Verify user is authenticated
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'Authentication required' });
-            return;
-        }
-
-        const token = authHeader.substring(7);
-        
-        try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            
-            const { structuredData } = req.body;
-            
-            if (!structuredData) {
-                res.status(400).json({ error: 'Structured CV data is required' });
-                return;
-            }
-
-            // Validate that this is real CV data, not mock
-            if (!structuredData.personalInfo?.name || !structuredData.personalInfo?.email) {
-                res.status(400).json({ error: 'Invalid CV data - missing required personal information' });
-                return;
-            }
-
-            console.log('Generating landing page for:', structuredData.personalInfo.name);
-            console.log('User ID:', decoded.userId);
-
-            // Generate the landing page using REAL CV data
-            const outputDir = path.join(__dirname, 'generated', decoded.userId, Date.now().toString());
-            const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
-
-            // Store generation info
-            const generationInfo = {
-                id: Date.now().toString(),
-                userId: decoded.userId,
-                outputDir: outputDir,
-                generatedAt: new Date().toISOString(),
-                files: result.files,
-                cvData: structuredData,
-                personName: structuredData.personalInfo.name
-            };
-
-            // Store for later retrieval
-            generatedLandingPages.set(generationInfo.id, generationInfo);
-
-            console.log('Landing page generated successfully for:', structuredData.personalInfo.name);
-
-            res.status(200).json({
-                success: true,
-                message: `Landing page generated successfully for ${structuredData.personalInfo.name}`,
-                generation: generationInfo,
-                previewUrl: `/preview/${generationInfo.id}`
-            });
-
-        } catch (jwtError) {
-            res.status(401).json({ error: 'Invalid token' });
-            return;
-        }
-
-    } catch (error) {
-        console.error('Landing page generation error:', error);
-        res.status(500).json({
-            error: 'Generation failed',
-            message: error.message
-        });
-    }
-}
-
-async function previewHandler(req, res) {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const { previewId } = req.query;
-        
-        if (!previewId) {
-            res.status(400).json({ error: 'Preview ID is required' });
-            return;
-        }
-
-        console.log('Loading preview for ID:', previewId);
-
-        // Get generation info from our storage
-        const generationInfo = generatedLandingPages.get(previewId);
-        
-        if (!generationInfo) {
-            res.status(404).json({ error: 'Preview not found' });
-            return;
-        }
-
-        const outputDir = generationInfo.outputDir;
-        const indexPath = path.join(outputDir, 'index.html');
-        
-        if (!fs.existsSync(indexPath)) {
-            res.status(404).json({ error: 'Generated files not found' });
-            return;
-        }
-
-        // Read the HTML file
-        let htmlContent = fs.readFileSync(indexPath, 'utf8');
-
-        // Update relative paths to work with our static file server
-        const baseUrl = `http://localhost:3000/api/cv/static?previewId=${previewId}&file=`;
-        
-        // Replace CSS and JS references
-        htmlContent = htmlContent.replace(
-            /href="styles\.css"/g, 
-            `href="${baseUrl}styles.css"`
-        );
-        
-        htmlContent = htmlContent.replace(
-            /src="data\.js"/g, 
-            `src="${baseUrl}data.js"`
-        );
-        
-        htmlContent = htmlContent.replace(
-            /src="script\.js"/g, 
-            `src="${baseUrl}script.js"`
-        );
-
-        // Set proper headers
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache');
-        
-        console.log('Serving preview HTML for:', generationInfo.personName);
-        res.status(200).send(htmlContent);
-
-    } catch (error) {
-        console.error('Preview error:', error);
-        res.status(500).json({
-            error: 'Preview failed',
-            message: error.message
-        });
-    }
-}
-
-// Static file handler for CSS, JS, and other assets
-async function staticFileHandler(req, res) {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const { previewId, file } = req.query;
-        
-        if (!previewId || !file) {
-            res.status(400).json({ error: 'Preview ID and file name are required' });
-            return;
-        }
-
-        console.log('Serving static file:', file, 'for preview:', previewId);
-
-        // Get generation info
-        const generationInfo = generatedLandingPages.get(previewId);
-        
-        if (!generationInfo) {
-            res.status(404).json({ error: 'Preview not found' });
-            return;
-        }
-
-        const filePath = path.join(generationInfo.outputDir, file);
-        
-        if (!fs.existsSync(filePath)) {
-            res.status(404).json({ error: 'File not found' });
-            return;
-        }
-
-        // Set content type based on file extension
-        const ext = path.extname(file).toLowerCase();
-        let contentType = 'text/plain';
-        
-        switch (ext) {
-            case '.css':
-                contentType = 'text/css; charset=utf-8';
-                break;
-            case '.js':
-                contentType = 'application/javascript; charset=utf-8';
-                break;
-            case '.html':
-                contentType = 'text/html; charset=utf-8';
-                break;
-            case '.json':
-                contentType = 'application/json; charset=utf-8';
-                break;
-            case '.png':
-                contentType = 'image/png';
-                break;
-            case '.jpg':
-            case '.jpeg':
-                contentType = 'image/jpeg';
-                break;
-        }
-
-        // Read and serve the file
-        const fileContent = fs.readFileSync(filePath);
-        
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'no-cache');
-        
-        console.log('Served static file:', file, 'type:', contentType);
-        res.status(200).send(fileContent);
-
-    } catch (error) {
-        console.error('Static file error:', error);
-        res.status(500).json({
-            error: 'File serving failed',
-            message: error.message
-        });
-    }
-}
-
-// Download handler - creates and serves a ZIP file
-async function downloadHandler(req, res) {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
-
-    try {
-        const { generationId } = req.query;
-        
-        if (!generationId) {
-            res.status(400).json({ error: 'Generation ID is required' });
-            return;
-        }
-
-        console.log('Download requested for generation:', generationId);
-
-        const generationInfo = generatedLandingPages.get(generationId);
-        
-        if (!generationInfo) {
-            res.status(404).json({ error: 'Generation not found' });
-            return;
-        }
-
-        const outputDir = generationInfo.outputDir;
-        
-        if (!fs.existsSync(outputDir)) {
-            res.status(404).json({ error: 'Generated files not found' });
-            return;
-        }
-
-        // Create ZIP file name
-        const personName = generationInfo.personName || 'landing-page';
-        const cleanName = personName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-        const zipFileName = `${cleanName}-landing-page.zip`;
-
-        // Set download headers
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
-        res.setHeader('Cache-Control', 'no-cache');
-
-        // Create ZIP archive
-        const archiver = require('archiver');
-        const archive = archiver('zip', {
-            zlib: { level: 9 }
-        });
-
-        // Handle archive errors
-        archive.on('error', (err) => {
-            console.error('Archive error:', err);
-            if (!res.headersSent) {
-                res.status(500).json({ error: 'Failed to create archive' });
-            }
-        });
-
-        // Pipe archive to response
-        archive.pipe(res);
-
-        // Add files to archive
-        const filesToInclude = ['index.html', 'styles.css', 'script.js', 'data.js'];
-        
-        filesToInclude.forEach(fileName => {
-            const filePath = path.join(outputDir, fileName);
-            if (fs.existsSync(filePath)) {
-                console.log(`Adding ${fileName} to archive`);
-                archive.file(filePath, { name: fileName });
-            }
-        });
-
-        // Add README file
-        const readmePath = path.join(outputDir, 'README.md');
-        if (fs.existsSync(readmePath)) {
-            archive.file(readmePath, { name: 'README.md' });
-        }
-
-        // Finalize the archive
-        console.log('Finalizing archive...');
-        await archive.finalize();
-        
-        console.log(`Download completed: ${zipFileName}`);
-
-    } catch (error) {
-        console.error('Download error:', error);
-        if (!res.headersSent) {
-            res.status(500).json({
-                error: 'Download failed',
-                message: error.message
-            });
-        }
-    }
-}
-
-// API routes
-app.get('/api/health', healthHandler);
-app.get('/api/test', testHandler);
-app.post('/api/test', testHandler);
-
-// Auth routes
-app.post('/api/auth/login', loginHandler);
-app.post('/api/auth/logout', logoutHandler);
-app.get('/api/auth/user', userHandler);
-
-// File upload routes
-app.post('/api/cv/upload', upload.single('cvFile'), uploadHandler);
-app.post('/api/cv/process', processFileHandler);
-app.get('/api/cv/status', statusHandler);
-
-// Landing page generation routes
-app.post('/api/cv/generate', generateLandingPageHandler);
-app.get('/api/cv/preview', previewHandler);
-app.get('/api/cv/static', staticFileHandler);
-app.get('/api/cv/download', downloadHandler);
-
-// Update your server startup console output
+    
+    res.status(500).json({
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : error.message
+    });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+    res.status(404).json({
+        error: 'Not found',
+        message: `Route ${req.method} ${req.originalUrl} not found`
+    });
+});
+
+// Start server
 app.listen(PORT, () => {
     console.log(`=================================`);
     console.log(`CV Landing Generator API Server`);
@@ -816,6 +105,8 @@ app.listen(PORT, () => {
     console.log(`JWT Secret: ${process.env.JWT_SECRET ? '✓ Configured' : '✗ Missing'}`);
     console.log(`=================================`);
 });
+
+module.exports = app;
 
 [END OF FILE: server.js]
 
@@ -1146,7 +437,7 @@ if (require.main === module) {
 
 --------------------------------------------------------------------------------
 FILE: package.json
-SIZE: 812 bytes (0.8 KB)
+SIZE: 969 bytes (0.9 KB)
 --------------------------------------------------------------------------------
 {
   "name": "cv-landing-generator",
@@ -1158,7 +449,8 @@ SIZE: 812 bytes (0.8 KB)
     "build": "cd frontend && ng build",
     "test:llm": "node test-llm-clients.js",
     "test:gemini": "node test-llm-clients.js gemini",
-    "test:ollama": "node test-llm-clients.js ollama"
+    "test:ollama": "node test-llm-clients.js ollama",
+    "db:init": "node scripts/init-database.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -1170,9 +462,13 @@ SIZE: 812 bytes (0.8 KB)
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.9.1",
     "multer": "^2.0.1",
-    "pdf-parse": "^1.1.1"
+    "mysql2": "^3.14.2",
+    "node-fetch": "^3.3.2",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.4",
     "concurrently": "^8.2.0"
   }
 }
@@ -1180,49 +476,12 @@ SIZE: 812 bytes (0.8 KB)
 [END OF FILE: package.json]
 
 --------------------------------------------------------------------------------
-FILE: vercel.json
-SIZE: 439 bytes (0.4 KB)
---------------------------------------------------------------------------------
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "frontend/dist/**/*",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/dist/$1"
-    }
-  ],
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  }
-}
-
-[END OF FILE: vercel.json]
-
---------------------------------------------------------------------------------
 FILE: .env.example
-SIZE: 1329 bytes (1.3 KB)
+SIZE: 937 bytes (0.9 KB)
 --------------------------------------------------------------------------------
-
 # File: .env.example
 
 # LLM Client Configuration
-# Choose your LLM provider: gemini, ollama
 LLM_CLIENT_TYPE=gemini
 
 # Google OAuth Configuration
@@ -1230,37 +489,26 @@ GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_random
 
-# Gemini AI Configuration (if using LLM_CLIENT_TYPE=gemini)
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Ollama Configuration (if using LLM_CLIENT_TYPE=ollama)
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama2
-
-# GitHub Integration (when we add it)
+# GitHub OAuth Configuration (NEW - for deployment)
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_REDIRECT_URI=http://localhost:3000/api/github/callback
+
+# Gemini AI Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Database Configuration (Supabase PostgreSQL)
+DATABASE_URL="postgresql://username:password@host/cv-landing-generator?ssl={\"rejectUnauthorized\":true}"
+
+# Encryption for sensitive data
+ENCRYPTION_KEY=your_32_character_encryption_key_here
 
 # Development URLs
 FRONTEND_URL=http://localhost:4200
 API_URL=http://localhost:3000
 
-# Vercel Integration (when we add it)
+# Optional: Vercel Integration (for future)
 VERCEL_TOKEN=your_vercel_token_here
-
-# LLM Client Configuration Notes:
-# 
-# For Gemini (recommended for production):
-# 1. Get API key from: https://makersuite.google.com/app/apikey
-# 2. Set LLM_CLIENT_TYPE=gemini
-# 3. Set GEMINI_API_KEY=your_actual_key
-#
-# For Ollama (local development, no API costs):
-# 1. Install Ollama: https://ollama.ai/
-# 2. Pull a model: ollama pull llama2
-# 3. Set LLM_CLIENT_TYPE=ollama
-# 4. Optionally set OLLAMA_BASE_URL and OLLAMA_MODEL
-# 5. Make sure Ollama is running: ollama serve
 
 [END OF FILE: .env.example]
 
@@ -1459,21 +707,26 @@ PATH: C:\Coding\cv-landing-generator\frontend
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\main.ts
-SIZE: 463 bytes (0.5 KB)
+SIZE: 586 bytes (0.6 KB)
 --------------------------------------------------------------------------------
 import { bootstrapApplication } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-
+import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
 import { routes } from './app/app.routes';
 
-bootstrapApplication(AppComponent, {
+const updatedAppConfig = {
+  ...appConfig,
   providers: [
+    ...appConfig.providers,
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi())
+    provideHttpClient() // Add HTTP client provider
   ]
-}).catch(err => console.error(err));
+};
+
+bootstrapApplication(AppComponent, updatedAppConfig)
+  .catch((err) => console.error(err));
 
 [END OF FILE: frontend\src\main.ts]
 
@@ -1498,8 +751,9 @@ export const appConfig: ApplicationConfig = {
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\app\app.routes.ts
-SIZE: 865 bytes (0.8 KB)
+SIZE: 1043 bytes (1 KB)
 --------------------------------------------------------------------------------
+// frontend/src/app/app.routes.ts
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
@@ -1527,6 +781,10 @@ export const routes: Routes = [
   {
     path: 'test',
     loadComponent: () => import('./components/api-test/api-test.component').then(m => m.ApiTestComponent)
+  },
+  {
+    path: 'github-test',
+    loadComponent: () => import('./components/github-test/github-test').then(m => m.GithubTestComponent)
   },
   {
     path: '**',
@@ -1749,12 +1007,13 @@ export class ApiTestComponent implements OnInit {
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\app\components\cv-wizard\cv-wizard.component.ts
-SIZE: 19850 bytes (19.4 KB)
+SIZE: 26221 bytes (25.6 KB)
 --------------------------------------------------------------------------------
 // File: frontend/src/app/components/cv-wizard/cv-wizard.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';  // ADD this import
 import { CVProcessingService, ProcessingProgress } from '../../services/cv-processing.service';
 import { LandingPageService } from '../../services/landing-page.service';
 import { PreviewModalComponent } from '../preview-modal/preview-modal.component';
@@ -1800,6 +1059,11 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     generationId: string | null = null;
     isDownloading = false;
     generationResult: any = null;
+
+    isDeploying = false;
+    deployedUrl: string | null = null;
+    githubConnected = false;
+    deploymentError: string | null = null;
 
     wizardSteps: WizardStep[] = [
         {
@@ -1915,7 +1179,8 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     constructor(
         private cvProcessingService: CVProcessingService,
-        private landingPageService: LandingPageService
+        private landingPageService: LandingPageService,
+        private http: HttpClient  // ADD HttpClient import
     ) { }
 
     ngOnInit() {
@@ -1933,6 +1198,12 @@ export class CVWizardComponent implements OnInit, OnDestroy {
                 }
             }
         );
+
+        // ADD: Check GitHub connection status
+        this.checkGitHubConnection();
+
+        // ADD: Handle GitHub OAuth callback
+        this.handleGitHubCallback();
     }
 
     ngOnDestroy() {
@@ -2291,9 +1562,362 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
+
+        async checkGitHubConnection() {
+        try {
+            const userId = this.getCurrentUserId();
+            
+            // Call the Express router endpoint
+            const response = await this.http.get<any>(`http://localhost:3000/api/sites/list?userId=${userId}`).toPromise();
+            
+            console.log('✅ Sites API response:', response);
+            
+            this.githubConnected = response.hasGitHubConnection;
+            
+            console.log('✅ GitHub connection check:', {
+                connected: this.githubConnected,
+                userId: userId
+            });
+            
+        } catch (error: any) {
+            console.error('❌ Failed to check GitHub connection:', error);
+            console.error('Error details:', {
+                status: error.status,
+                statusText: error.statusText,
+                url: error.url,
+                message: error.message
+            });
+            this.githubConnected = false;
+        }
+    }
+
+    async deployToGitHub() {
+        try {
+            console.log('🚀 Deploy button clicked');
+            
+            // Check if GitHub is connected first
+            if (!this.githubConnected) {
+                await this.connectGitHub();
+                return;
+            }
+
+            // Get site name from user
+            const siteName = prompt('Enter a name for your website:') || 'my-portfolio';
+            
+            // Start deployment
+            this.isDeploying = true;
+            this.deployedUrl = null;
+            this.deploymentError = null;
+
+            const userId = this.getCurrentUserId();
+            const finalCvData = this.buildFinalCVDataFromEditedSections();
+
+            console.log('🚀 Starting GitHub deployment:', {
+                userId: userId,
+                siteName: siteName,
+                hasGenerationId: !!this.generationId,
+                cvDataKeys: Object.keys(finalCvData)
+            });
+
+            // Call deploy API
+            const response = await this.http.post<any>('http://localhost:3000/api/cv/deploy', {
+                userId: userId,
+                cvData: finalCvData,
+                siteName: siteName
+            }).toPromise();
+
+            console.log('✅ GitHub deployment succeeded:', {
+                githubUrl: response.githubUrl,
+                pagesUrl: response.pagesUrl,
+                repoName: response.repoName
+            });
+
+            this.deployedUrl = response.pagesUrl;
+            
+            // Show success message
+            alert(`🎉 Website deployed successfully!\n\nLive URL: ${response.pagesUrl}\nRepository: ${response.githubUrl}\n\nNote: GitHub Pages may take 2-3 minutes to become available.`);
+
+        } catch (error: any) {
+            console.error('❌ GitHub deployment failed:', error);
+            
+            const errorMessage = error.error?.error || error.message || 'Deployment failed';
+            this.deploymentError = errorMessage;
+            alert(`❌ Deployment failed: ${errorMessage}`);
+            
+        } finally {
+            this.isDeploying = false;
+        }
+    }
+
+    async connectGitHub() {
+        try {
+            const userId = this.getCurrentUserId();
+            
+            console.log('🔗 Connecting to GitHub for user:', userId);
+            
+            const response = await this.http.post<any>('http://localhost:3000/api/github/connect', { userId }).toPromise();
+            
+            console.log('✅ GitHub OAuth URL generated:', {
+                hasOAuthUrl: !!response.oauthUrl,
+                clientIdFound: response.oauthUrl?.includes('client_id='),
+                redirectUriFound: response.oauthUrl?.includes('redirect_uri=')
+            });
+
+            if (response.oauthUrl) {
+                // Store current data before redirect
+                localStorage.setItem('pendingCvData', JSON.stringify(this.buildFinalCVDataFromEditedSections()));
+                localStorage.setItem('pendingGenerationId', this.generationId || '');
+                
+                // Redirect to GitHub OAuth
+                window.location.href = response.oauthUrl;
+            }
+
+        } catch (error: any) {
+            console.error('❌ Failed to connect GitHub:', error);
+            alert('Failed to connect to GitHub. Please try again.');
+        }
+    }
+
+    private handleGitHubCallback() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const githubConnected = urlParams.get('github_connected');
+        
+        if (githubConnected === 'true') {
+            console.log('✅ GitHub OAuth callback successful');
+            
+            // Restore data
+            const savedCvData = localStorage.getItem('pendingCvData');
+            const savedGenerationId = localStorage.getItem('pendingGenerationId');
+            
+            if (savedCvData) {
+                // Restore CV data and update sections
+                const restoredData = JSON.parse(savedCvData);
+                this.cvData = restoredData;
+                this.generationId = savedGenerationId;
+                
+                // Clean up
+                localStorage.removeItem('pendingCvData');
+                localStorage.removeItem('pendingGenerationId');
+            }
+            
+            // Update connection status
+            this.githubConnected = true;
+            
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            alert('✅ GitHub connected successfully! You can now deploy your website.');
+        }
+    }
+
+    private getCurrentUserId(): string {
+        // Replace with your actual user ID method
+        return localStorage.getItem('userId') || '1';
+    }
 }
 
 [END OF FILE: frontend\src\app\components\cv-wizard\cv-wizard.component.ts]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\components\deploy-website\deploy-website.component.ts
+SIZE: 5719 bytes (5.6 KB)
+--------------------------------------------------------------------------------
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+
+@Component({
+  selector: 'app-deploy-website',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: 'deploy-website.component.html',
+  styleUrls: ['deploy-website.component.scss']
+})
+export class DeployWebsiteComponent {
+  @Input() cvData: any = null;
+  @Input() userId: string = '';
+  @Output() deploymentComplete = new EventEmitter<any>();
+
+  siteName: string = '';
+  isDeploying: boolean = false;
+  deploymentStatus: string = '';
+  deploymentError: string = '';
+  deployedUrls: any = null;
+  hasGitHubConnection: boolean = false;
+  showDeployForm: boolean = false;
+
+  constructor(private http: HttpClient) {}
+
+  async ngOnInit() {
+    await this.checkGitHubConnection();
+    this.generateSiteName();
+  }
+
+  async checkGitHubConnection() {
+    try {
+      const response = await this.http.get<any>(`/api/sites/list?userId=${this.userId}`).toPromise();
+      this.hasGitHubConnection = response.hasGitHubConnection;
+    } catch (error) {
+      console.error('Failed to check GitHub connection:', error);
+      this.hasGitHubConnection = false;
+    }
+  }
+
+  generateSiteName() {
+    if (this.cvData?.personalInfo?.name) {
+      // Generate a clean site name from the user's name
+      this.siteName = this.cvData.personalInfo.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '-')
+        .substring(0, 30) + '-portfolio';
+    } else {
+      this.siteName = 'my-portfolio';
+    }
+  }
+
+  async connectGitHub() {
+    try {
+      const response = await this.http.post<any>('/api/github/connect', { userId: this.userId }).toPromise();
+      
+      if (response.oauthUrl) {
+        // Store current state before redirect
+        localStorage.setItem('pendingDeployment', JSON.stringify({
+          cvData: this.cvData,
+          siteName: this.siteName
+        }));
+        
+        // Redirect to GitHub OAuth
+        window.location.href = response.oauthUrl;
+      }
+    } catch (error: any) {
+      console.error('Failed to connect GitHub:', error);
+      this.deploymentError = 'Failed to connect to GitHub. Please try again.';
+    }
+  }
+
+  showDeploymentForm() {
+    this.showDeployForm = true;
+    this.deploymentError = '';
+    this.deploymentStatus = '';
+  }
+
+  async deployWebsite() {
+    if (!this.siteName.trim()) {
+      this.deploymentError = 'Please enter a site name';
+      return;
+    }
+
+    if (!this.cvData) {
+      this.deploymentError = 'No CV data available for deployment';
+      return;
+    }
+
+    this.isDeploying = true;
+    this.deploymentError = '';
+    this.deploymentStatus = 'Starting deployment...';
+
+    try {
+      // Step 1: Deploy to GitHub
+      this.deploymentStatus = 'Creating GitHub repository...';
+      
+      const deployResponse = await this.http.post<any>('/api/cv/deploy', {
+        userId: this.userId,
+        cvData: this.cvData,
+        siteName: this.siteName.trim()
+      }).toPromise();
+
+      this.deploymentStatus = 'Enabling GitHub Pages...';
+      
+      // Step 2: Wait a moment for GitHub Pages to process
+      await this.delay(3000);
+      
+      this.deploymentStatus = 'Deployment complete!';
+      
+      this.deployedUrls = {
+        github: deployResponse.githubUrl,
+        pages: deployResponse.pagesUrl,
+        siteId: deployResponse.siteId
+      };
+
+      // Emit success event
+      this.deploymentComplete.emit({
+        success: true,
+        urls: this.deployedUrls,
+        siteName: this.siteName
+      });
+
+    } catch (error: any) {
+      console.error('Deployment failed:', error);
+      this.deploymentError = error.error?.error || 'Deployment failed. Please try again.';
+      this.deploymentStatus = '';
+    } finally {
+      this.isDeploying = false;
+    }
+  }
+
+  async deleteDeployment() {
+    if (!this.deployedUrls?.siteId) return;
+
+    if (!confirm('Are you sure you want to delete this deployment? This will remove the GitHub repository.')) {
+      return;
+    }
+
+    try {
+      await this.http.delete('/api/sites/delete', {
+        body: { 
+          siteId: this.deployedUrls.siteId, 
+          userId: this.userId 
+        }
+      }).toPromise();
+
+      // Reset state
+      this.deployedUrls = null;
+      this.showDeployForm = false;
+      this.deploymentStatus = '';
+      
+      alert('Deployment deleted successfully!');
+
+    } catch (error: any) {
+      console.error('Failed to delete deployment:', error);
+      alert('Failed to delete deployment. Please try again.');
+    }
+  }
+
+  resetForm() {
+    this.showDeployForm = false;
+    this.deploymentError = '';
+    this.deploymentStatus = '';
+    this.deployedUrls = null;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Check for pending deployment after GitHub OAuth return
+  checkPendingDeployment() {
+    const pending = localStorage.getItem('pendingDeployment');
+    if (pending) {
+      const data = JSON.parse(pending);
+      this.cvData = data.cvData;
+      this.siteName = data.siteName;
+      localStorage.removeItem('pendingDeployment');
+      
+      // Auto-show deployment form if user just connected GitHub
+      setTimeout(() => {
+        this.checkGitHubConnection().then(() => {
+          if (this.hasGitHubConnection) {
+            this.showDeploymentForm();
+          }
+        });
+      }, 1000);
+    }
+  }
+}
+
+[END OF FILE: frontend\src\app\components\deploy-website\deploy-website.component.ts]
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\app\components\file-upload\file-upload.component.ts
@@ -2832,6 +2456,305 @@ export class FooterComponent {
 }
 
 [END OF FILE: frontend\src\app\components\footer\footer.component.ts]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\components\github-test\github-test.ts
+SIZE: 11349 bytes (11.1 KB)
+--------------------------------------------------------------------------------
+// frontend/src/app/components/github-test/github-test.component.ts
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+
+@Component({
+  selector: 'app-github-test',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="container mx-auto px-4 py-8">
+      <div class="card max-w-4xl mx-auto">
+        <h2 class="text-3xl font-bold text-gray-900 mb-8">GitHub Integration Test</h2>
+        
+        <!-- Console Messages -->
+        <div class="mb-8 p-4 bg-gray-900 rounded-lg">
+          <h3 class="text-white font-semibold mb-4">Console Messages:</h3>
+          <div class="bg-black text-green-400 p-4 rounded font-mono text-sm max-h-64 overflow-y-auto">
+            <div *ngFor="let log of logs">
+              <span [ngClass]="{
+                'text-red-400': log.type === 'error',
+                'text-yellow-400': log.type === 'warning', 
+                'text-green-400': log.type === 'success',
+                'text-blue-400': log.type === 'info'
+              }">
+                [{{ log.timestamp }}] {{ log.message }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="mb-8 p-4 border rounded-lg" [ngClass]="{
+          'bg-green-50 border-green-200': githubConnected,
+          'bg-gray-50 border-gray-200': !githubConnected
+        }">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <div class="w-3 h-3 rounded-full mr-3" [ngClass]="{
+                'bg-green-500': githubConnected,
+                'bg-gray-400': !githubConnected
+              }"></div>
+              <span class="font-medium">
+                {{ githubConnected ? 'GitHub Connected' : 'GitHub Not Connected' }}
+              </span>
+            </div>
+            <span *ngIf="githubUsername" class="text-sm text-gray-600">
+              {{ githubUsername }}
+            </span>
+          </div>
+        </div>
+
+        <!-- OAuth URL Display -->
+        <div *ngIf="oauthUrl && !githubConnected" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 class="font-semibold text-blue-900 mb-2">GitHub Authentication Required</h4>
+          <p class="text-blue-800 text-sm mb-4">
+            Click the link below to authenticate with GitHub (opens in new tab):
+          </p>
+          <a [href]="oauthUrl" 
+             target="_blank"
+             class="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mb-4">
+            Authenticate with GitHub
+          </a>
+          <p class="text-xs text-blue-600 mb-3">
+            After authentication, return here and click "Check Connection"
+          </p>
+          <button (click)="checkConnection()"
+                  class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200">
+            Check Connection
+          </button>
+        </div>
+
+        <!-- URL Parameters Debug -->
+        <div *ngIf="urlParams.code || urlParams.github_connected" class="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h4 class="font-semibold text-yellow-800 mb-2">OAuth Callback Detected</h4>
+          <pre class="text-xs text-yellow-700">{{ formatJson(urlParams) }}</pre>
+        </div>
+
+        <!-- Test Buttons -->
+        <div class="space-y-4">
+          <h3 class="font-semibold text-gray-900 mb-4">Quick Tests:</h3>
+          
+          <button (click)="testEnvironment()"
+                  [disabled]="loading"
+                  class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+            {{ loading ? 'Testing...' : '1. Test Environment Variables' }}
+          </button>
+          
+          <button (click)="generateAuthUrl()"
+                  [disabled]="loading"
+                  class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {{ loading ? 'Generating...' : '2. Generate GitHub Auth URL' }}
+          </button>
+          
+          <button (click)="testRepoCreation()"
+                  [disabled]="loading || !githubConnected"
+                  class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+            {{ loading ? 'Creating Repository...' : '3. Test Repository Creation' }}
+          </button>
+
+          <button (click)="clearLogs()"
+                  class="w-full px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+            Clear Console
+          </button>
+        </div>
+
+        <!-- Error Display -->
+        <div *ngIf="error" class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <h4 class="font-semibold text-red-800 mb-2">Error:</h4>
+          <p class="text-red-700">{{ error }}</p>
+        </div>
+      </div>
+    </div>
+  `
+})
+export class GithubTestComponent implements OnInit {
+  logs: Array<{timestamp: string, message: string, type: string}> = [];
+  githubConnected = false;
+  githubUsername = '';
+  loading = false;
+  oauthUrl = '';
+  error = '';
+  urlParams: any = {};
+
+  constructor(private http: HttpClient) {}
+
+  ngOnInit() {
+    this.log('GitHub Test Component initialized', 'info');
+    this.checkUrlParams();
+    this.checkConnection();
+  }
+
+  private log(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+    const timestamp = new Date().toLocaleTimeString();
+    this.logs.push({ timestamp, message, type });
+    console.log(`[${timestamp}] ${message}`);
+    
+    setTimeout(() => {
+      const consoleDiv = document.querySelector('.max-h-64');
+      if (consoleDiv) {
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+      }
+    }, 100);
+  }
+
+  private checkUrlParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    this.urlParams = {
+      github_connected: urlParams.get('github_connected'),
+      github_error: urlParams.get('github_error'),
+      code: urlParams.get('code'),
+      state: urlParams.get('state'),
+      username: urlParams.get('username')
+    };
+
+    if (this.urlParams.github_connected === 'true') {
+      this.githubConnected = true;
+      this.githubUsername = this.urlParams.username || '';
+      this.log('GitHub OAuth callback successful!', 'success');
+      if (this.urlParams.username) {
+        this.log('Connected as: ' + this.urlParams.username, 'info');
+      }
+    } else if (this.urlParams.github_error === 'true') {
+      this.log('GitHub OAuth callback failed!', 'error');
+    } else if (this.urlParams.code) {
+      this.log('GitHub OAuth code received, processing...', 'info');
+    }
+  }
+
+  async testEnvironment() {
+    this.loading = true;
+    this.error = '';
+    this.log('Testing environment variables...', 'info');
+
+    try {
+      const response = await this.http.get<any>('http://localhost:3000/api/github/test?userId=1').toPromise();
+      
+      if (response && response.success) {
+        this.log('Environment variables configured correctly', 'success');
+        this.log('Client ID: ' + (response.environment?.clientId || 'Not found'), 'info');
+        this.log('Redirect URI: ' + (response.environment?.redirectUri || 'Not found'), 'info');
+        this.log('GitHub API accessible: ' + (response.githubApi?.accessible || false), 'info');
+      } else {
+        this.log('Environment test failed', 'error');
+        this.error = response?.error || 'Environment test failed';
+      }
+    } catch (error: any) {
+      this.log('Environment test request failed', 'error');
+      this.error = error.message || 'Request failed';
+      this.log('Error details: ' + this.error, 'error');
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async generateAuthUrl() {
+    this.loading = true;
+    this.error = '';
+    this.log('Generating GitHub authentication URL...', 'info');
+
+    try {
+      const response = await this.http.post<any>('http://localhost:3000/api/github/connect', { 
+        userId: '1' 
+      }).toPromise();
+      
+      if (response && response.success && response.oauthUrl) {
+        this.oauthUrl = response.oauthUrl;
+        this.log('GitHub OAuth URL generated successfully', 'success');
+        this.log('OAuth URL ready - click the link above to authenticate', 'info');
+        this.log('Important: Return to this page after GitHub authentication', 'warning');
+      } else {
+        this.log('Failed to generate OAuth URL', 'error');
+        this.error = response?.error || 'OAuth URL generation failed';
+      }
+    } catch (error: any) {
+      this.log('OAuth URL generation request failed', 'error');
+      this.error = error.message || 'Request failed';
+      this.log('Error details: ' + this.error, 'error');
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async checkConnection() {
+    this.log('Checking GitHub connection status...', 'info');
+
+    try {
+      const response = await this.http.get<any>('http://localhost:3000/api/sites/list?userId=1').toPromise();
+      
+      if (response && response.hasGitHubConnection) {
+        this.githubConnected = true;
+        this.log('GitHub connection verified!', 'success');
+      } else {
+        this.githubConnected = false;
+        this.log('No GitHub connection found', 'warning');
+      }
+    } catch (error: any) {
+      this.log('Failed to check GitHub connection', 'error');
+      this.log('Connection check error: ' + error.message, 'error');
+    }
+  }
+
+  async testRepoCreation() {
+    this.loading = true;
+    this.error = '';
+    this.log('Testing GitHub repository creation...', 'info');
+
+    try {
+      const testRepoName = 'test-repo-' + Date.now();
+      this.log('Creating repository: ' + testRepoName, 'info');
+      
+      const response = await this.http.post<any>('http://localhost:3000/api/cv/deploy', {
+        userId: '1',
+        siteName: testRepoName,
+        cvData: {
+          personalInfo: { name: 'Test User', email: 'test@example.com' },
+          summary: 'This is a test deployment',
+          experience: [],
+          education: [],
+          skills: ['Testing'],
+          projects: [],
+          certifications: []
+        }
+      }).toPromise();
+      
+      if (response && response.githubUrl) {
+        this.log('Test repository created successfully!', 'success');
+        this.log('Repository URL: ' + response.githubUrl, 'info');
+        this.log('Live URL: ' + response.pagesUrl, 'info');
+      } else {
+        this.log('Repository creation failed', 'error');
+        this.error = 'No repository URL returned';
+      }
+    } catch (error: any) {
+      this.log('Repository creation test failed', 'error');
+      this.error = error.error?.error || error.message || 'Repository creation failed';
+      this.log('Error details: ' + this.error, 'error');
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  clearLogs() {
+    this.logs = [];
+    this.error = '';
+    this.log('Console cleared', 'info');
+  }
+
+  formatJson(obj: any): string {
+    return JSON.stringify(obj, null, 2);
+  }
+}
+
+[END OF FILE: frontend\src\app\components\github-test\github-test.ts]
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\app\components\header\header.component.ts
@@ -4246,6 +4169,148 @@ export class HomeComponent {
 [END OF FILE: frontend\src\app\pages\home\home.component.ts]
 
 --------------------------------------------------------------------------------
+FILE: frontend\src\app\pages\sites\sites.component.ts
+SIZE: 3829 bytes (3.7 KB)
+--------------------------------------------------------------------------------
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
+
+interface Site {
+  id: number;
+  site_name: string;
+  repo_name: string;
+  github_url: string;
+  pages_url: string;
+  vercel_url: string;
+  deployment_status: 'pending' | 'deploying' | 'deployed' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+@Component({
+  selector: 'app-sites',
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: 'sites.component.html',
+  styleUrls: ['sites.component.scss']
+})
+export class SitesComponent implements OnInit {
+  sites: Site[] = [];
+  loading = true;
+  hasGitHubConnection = false;
+  error: string | null = null;
+
+  constructor(
+    private http: HttpClient,
+    private router: Router
+  ) {}
+
+  ngOnInit() {
+    this.loadSites();
+  }
+
+  async loadSites() {
+    try {
+      this.loading = true;
+      this.error = null;
+
+      // Get current user ID (you'll need to implement this based on your auth system)
+      const userId = this.getCurrentUserId();
+      
+      const response = await this.http.get<any>(`/api/sites/list?userId=${userId}`).toPromise();
+      
+      this.sites = response.sites;
+      this.hasGitHubConnection = response.hasGitHubConnection;
+
+    } catch (error: any) {
+      console.error('Failed to load sites:', error);
+      this.error = 'Failed to load your sites. Please try again.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async connectGitHub() {
+    try {
+      const userId = this.getCurrentUserId();
+      
+      const response = await this.http.post<any>('/api/github/connect', { userId }).toPromise();
+      
+      if (response.oauthUrl) {
+        // Redirect to GitHub OAuth
+        window.location.href = response.oauthUrl;
+      }
+
+    } catch (error: any) {
+      console.error('Failed to initiate GitHub connection:', error);
+      alert('Failed to connect to GitHub. Please try again.');
+    }
+  }
+
+  async deleteSite(site: Site) {
+    if (!confirm(`Are you sure you want to delete "${site.site_name}"? This will also delete the GitHub repository.`)) {
+      return;
+    }
+
+    try {
+      const userId = this.getCurrentUserId();
+      
+      await this.http.delete('/api/sites/delete', {
+        body: { siteId: site.id, userId }
+      }).toPromise();
+
+      // Remove from local list
+      this.sites = this.sites.filter(s => s.id !== site.id);
+      
+      alert('Site deleted successfully!');
+
+    } catch (error: any) {
+      console.error('Failed to delete site:', error);
+      alert('Failed to delete site. Please try again.');
+    }
+  }
+
+  createNewSite() {
+    // Navigate to CV upload/processing page
+    this.router.navigate(['/cv-wizard']);
+  }
+
+  getStatusClass(status: string): string {
+    switch (status) {
+      case 'deployed': return 'text-green-600 bg-green-100';
+      case 'deploying': return 'text-blue-600 bg-blue-100';
+      case 'pending': return 'text-yellow-600 bg-yellow-100';
+      case 'failed': return 'text-red-600 bg-red-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  }
+
+  getStatusText(status: string): string {
+    switch (status) {
+      case 'deployed': return 'Live';
+      case 'deploying': return 'Deploying...';
+      case 'pending': return 'Pending';
+      case 'failed': return 'Failed';
+      default: return 'Unknown';
+    }
+  }
+
+  formatDate(dateString: string): string {
+    return new Date(dateString).toLocaleDateString();
+  }
+
+  private getCurrentUserId(): string {
+    // Implement this based on your authentication system
+    // For now, returning a placeholder
+    return localStorage.getItem('userId') || '1';
+  }
+}
+
+[END OF FILE: frontend\src\app\pages\sites\sites.component.ts]
+
+--------------------------------------------------------------------------------
 FILE: frontend\src\app\pages\upload\upload.component.ts
 SIZE: 1606 bytes (1.6 KB)
 --------------------------------------------------------------------------------
@@ -5283,7 +5348,7 @@ SIZE: 587 bytes (0.6 KB)
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\app\components\cv-wizard\cv-wizard.component.html
-SIZE: 19241 bytes (18.8 KB)
+SIZE: 21987 bytes (21.5 KB)
 --------------------------------------------------------------------------------
 <!-- File: frontend/src/app/components/cv-wizard/cv-wizard.component.html -->
 <div class="container max-w-5xl mx-auto section-padding cv-wizard">
@@ -5293,7 +5358,7 @@ SIZE: 19241 bytes (18.8 KB)
       <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
       <span class="text-sm font-medium warm-text-primary">AI-Powered • Fast • Professional</span>
     </div>
-    
+
     <h1 class="text-4xl md:text-5xl font-bold mb-6">
       <span class="warm-text-primary">Transform Your</span>
       <br>
@@ -5301,9 +5366,10 @@ SIZE: 19241 bytes (18.8 KB)
       <br>
       <span class="warm-text-primary">Landing Page</span>
     </h1>
-    
+
     <p class="text-xl warm-text-secondary max-w-2xl mx-auto leading-relaxed">
-      Upload your CV and let our AI create a beautiful, responsive landing page that showcases your professional story in minutes.
+      Upload your CV and let our AI create a beautiful, responsive landing page that showcases your professional story
+      in minutes.
     </p>
   </div>
 
@@ -5311,35 +5377,29 @@ SIZE: 19241 bytes (18.8 KB)
   <div class="mb-12 slide-up">
     <div class="wizard-steps">
       <div class="flex items-center justify-between max-w-4xl mx-auto">
-        <div *ngFor="let step of wizardSteps; let i = index" 
-             class="flex items-center"
-             [class.flex-1]="i < wizardSteps.length - 1">
-          
+        <div *ngFor="let step of wizardSteps; let i = index" class="flex items-center"
+          [class.flex-1]="i < wizardSteps.length - 1">
+
           <!-- Step Circle -->
-          <div class="step-indicator"
-               [class.completed]="step.completed"
-               [class.active]="step.active"
-               [class.pending]="!step.completed && !step.active">
+          <div class="step-indicator" [class.completed]="step.completed" [class.active]="step.active"
+            [class.pending]="!step.completed && !step.active">
             <svg *ngIf="step.completed" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span *ngIf="!step.completed">{{ step.id }}</span>
           </div>
-          
+
           <!-- Step Info -->
           <div class="ml-4 hidden md:block step-text">
-            <p class="font-medium text-sm mb-1"
-               [class.warm-text-primary]="step.completed || step.active"
-               [class.warm-text-light]="!step.completed && !step.active">
+            <p class="font-medium text-sm mb-1" [class.warm-text-primary]="step.completed || step.active"
+              [class.warm-text-light]="!step.completed && !step.active">
               {{ step.title }}
             </p>
             <p class="text-xs warm-text-light">{{ step.description }}</p>
           </div>
-          
+
           <!-- Connector Line -->
-          <div *ngIf="i < wizardSteps.length - 1" 
-               class="flex-1 h-1 mx-6 step-line"
-               [class.completed]="step.completed">
+          <div *ngIf="i < wizardSteps.length - 1" class="flex-1 h-1 mx-6 step-line" [class.completed]="step.completed">
           </div>
         </div>
       </div>
@@ -5348,7 +5408,7 @@ SIZE: 19241 bytes (18.8 KB)
 
   <!-- Step Content -->
   <div class="card max-w-4xl mx-auto scale-in">
-    
+
     <!-- Step 1: Upload CV -->
     <div *ngIf="currentStep === 1" class="text-center">
       <div class="w-16 h-16 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg">
@@ -5356,26 +5416,22 @@ SIZE: 19241 bytes (18.8 KB)
           <span class="text-warm-orange font-bold text-xs">CV</span>
         </div>
       </div>
-      
+
       <h2 class="text-2xl font-bold warm-text-primary mb-4">Upload Your CV</h2>
       <p class="warm-text-secondary mb-8 max-w-md mx-auto">
         Upload your CV in PDF, DOC, or DOCX format and we'll extract your information automatically
       </p>
-      
-      <div *ngIf="!uploadedFile" 
-           class="upload-zone"
-           (dragover)="onDragOver($event)"
-           (dragleave)="onDragLeave($event)" 
-           (drop)="onDrop($event)"
-           [class.dragover]="isDragOver">
-        
+
+      <div *ngIf="!uploadedFile" class="upload-zone" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)" [class.dragover]="isDragOver">
+
         <div class="space-y-6 relative z-10">
           <div class="w-20 h-20 bg-warm-cream rounded-xl flex items-center justify-center mx-auto">
             <div class="w-10 h-10 bg-warm-orange rounded-lg flex items-center justify-center">
               <span class="text-white font-bold">CV</span>
             </div>
           </div>
-          
+
           <div>
             <p class="text-lg font-medium warm-text-primary mb-2">
               Drag and drop your CV here
@@ -5387,13 +5443,10 @@ SIZE: 19241 bytes (18.8 KB)
               Supports PDF, DOC, DOCX • Max size 10MB
             </p>
           </div>
-          
+
           <div>
-            <input type="file" 
-                   id="cv-file-input"
-                   class="hidden"
-                   accept=".pdf,.doc,.docx"
-                   (change)="onFileSelected($event)">
+            <input type="file" id="cv-file-input" class="hidden" accept=".pdf,.doc,.docx"
+              (change)="onFileSelected($event)">
             <label for="cv-file-input" class="btn-primary cursor-pointer inline-flex items-center">
               <span class="mr-2">+</span>
               Choose File
@@ -5411,8 +5464,8 @@ SIZE: 19241 bytes (18.8 KB)
             <p class="file-name font-semibold">{{ uploadedFile.name }}</p>
             <p class="file-size text-sm">{{ formatFileSize(uploadedFile.size) }}</p>
           </div>
-          <button (click)="removeFile()" 
-                  class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          <button (click)="removeFile()"
+            class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
             <span class="text-lg">×</span>
           </button>
         </div>
@@ -5424,18 +5477,18 @@ SIZE: 19241 bytes (18.8 KB)
       <div class="w-16 h-16 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-6">
         <div class="w-8 h-8 bg-purple-500 rounded-full"></div>
       </div>
-      
+
       <h2 class="text-2xl font-bold warm-text-primary mb-4">Add Your Photo</h2>
       <p class="warm-text-secondary mb-8 max-w-md mx-auto">
         Upload a professional headshot to personalize your landing page (optional)
       </p>
-      
+
       <div *ngIf="!profilePicture" class="upload-zone max-w-md mx-auto">
         <div class="space-y-6 relative z-10">
           <div class="w-20 h-20 bg-purple-50 rounded-full flex items-center justify-center mx-auto">
             <div class="w-10 h-10 bg-purple-500 rounded-full"></div>
           </div>
-          
+
           <div>
             <p class="text-lg font-medium warm-text-primary mb-2">
               Upload your photo
@@ -5444,13 +5497,10 @@ SIZE: 19241 bytes (18.8 KB)
               JPG, PNG • Max size 5MB
             </p>
           </div>
-          
+
           <div class="space-x-4">
-            <input type="file" 
-                   id="profile-file-input"
-                   class="hidden"
-                   accept=".jpg,.jpeg,.png"
-                   (change)="onProfileSelected($event)">
+            <input type="file" id="profile-file-input" class="hidden" accept=".jpg,.jpeg,.png"
+              (change)="onProfileSelected($event)">
             <label for="profile-file-input" class="btn-primary cursor-pointer inline-flex items-center">
               <span class="mr-2">+</span>
               Choose Photo
@@ -5468,8 +5518,7 @@ SIZE: 19241 bytes (18.8 KB)
             <p class="font-semibold warm-text-primary">Looking great! 🎉</p>
             <p class="text-sm warm-text-secondary">Your photo is ready</p>
           </div>
-          <button (click)="removeProfilePicture()" 
-                  class="btn-ghost text-red-600 hover:bg-red-50">
+          <button (click)="removeProfilePicture()" class="btn-ghost text-red-600 hover:bg-red-50">
             Change Photo
           </button>
         </div>
@@ -5483,12 +5532,12 @@ SIZE: 19241 bytes (18.8 KB)
           <span class="text-white font-bold">AI</span>
         </div>
       </div>
-      
+
       <h2 class="text-2xl font-bold warm-text-primary mb-4">Generate Content</h2>
       <p class="warm-text-secondary mb-8 max-w-md mx-auto">
         Our AI will analyze your CV and create professional content for your landing page
       </p>
-      
+
       <div *ngIf="!isProcessing && !cvData" class="space-y-6">
         <div class="card max-w-md mx-auto p-8 bg-gradient-to-br from-warm-cream to-warm-yellow">
           <div class="space-y-6">
@@ -5519,10 +5568,9 @@ SIZE: 19241 bytes (18.8 KB)
               </p>
             </div>
           </div>
-          
+
           <div class="mt-8 space-y-3">
-            <div *ngFor="let phase of processingPhases" 
-                 class="flex items-center justify-between text-sm">
+            <div *ngFor="let phase of processingPhases" class="flex items-center justify-between text-sm">
               <span class="warm-text-secondary">{{ phase.name }}</span>
               <div class="flex items-center space-x-2">
                 <div *ngIf="phase.status === 'completed'" class="w-4 h-4 text-green-500">
@@ -5560,7 +5608,7 @@ SIZE: 19241 bytes (18.8 KB)
           Review the generated content and make any adjustments before creating your landing page
         </p>
       </div>
-      
+
       <div class="space-y-6">
         <div *ngFor="let section of cvSections" class="card p-6">
           <div class="flex items-center mb-4">
@@ -5569,14 +5617,11 @@ SIZE: 19241 bytes (18.8 KB)
             </div>
             <h3 class="text-lg font-semibold warm-text-primary">{{ section.title }}</h3>
           </div>
-          
-          <textarea 
-            [(ngModel)]="section.content"
-            [placeholder]="section.placeholder"
-            [rows]="section.rows"
+
+          <textarea [(ngModel)]="section.content" [placeholder]="section.placeholder" [rows]="section.rows"
             class="textarea-field">
           </textarea>
-          
+
           <div class="flex items-center justify-between mt-2">
             <span class="text-xs warm-text-light">{{ section.content.length || 0 }} characters</span>
             <button class="btn-ghost text-xs" (click)="resetSection(section)">
@@ -5594,12 +5639,12 @@ SIZE: 19241 bytes (18.8 KB)
           <span class="text-white font-bold">🌐</span>
         </div>
       </div>
-      
+
       <h2 class="text-2xl font-bold warm-text-primary mb-4">Create Your Website</h2>
       <p class="warm-text-secondary mb-8 max-w-md mx-auto">
         Generate your professional landing page with all your customized content
       </p>
-      
+
       <!-- Before Generation -->
       <div *ngIf="!isGeneratingWebsite && !websiteGenerated" class="space-y-6">
         <div class="card max-w-md mx-auto p-8 bg-gradient-to-br from-purple-50 to-pink-50">
@@ -5648,34 +5693,78 @@ SIZE: 19241 bytes (18.8 KB)
                 Your professional landing page is ready to share with the world
               </p>
             </div>
-            
+
             <!-- Action buttons -->
             <div class="flex flex-col sm:flex-row gap-3 justify-center">
-              <button 
-                (click)="openPreview()"
-                class="btn-primary flex items-center justify-center space-x-2">
+              <button (click)="openPreview()" class="btn-primary flex items-center justify-center space-x-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
                 <span>Preview Website</span>
               </button>
-              
-              <button 
-                (click)="downloadWebsite()"
-                [disabled]="isDownloading"
+
+              <button (click)="downloadWebsite()" [disabled]="isDownloading"
                 class="btn-secondary flex items-center justify-center space-x-2">
                 <svg *ngIf="!isDownloading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <div *ngIf="isDownloading" class="loading-spinner w-4 h-4"></div>
                 <span>{{ isDownloading ? 'Downloading...' : 'Download Files' }}</span>
               </button>
+
+              <button (click)="deployToGitHub()" [disabled]="isDeploying"
+                class="btn-primary flex items-center justify-center space-x-2 bg-gray-900 hover:bg-gray-800">
+
+                <svg *ngIf="!isDeploying" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path
+                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                </svg>
+
+                <div *ngIf="isDeploying" class="loading-spinner w-4 h-4"></div>
+
+                <span *ngIf="!isDeploying && !githubConnected">Connect & Deploy</span>
+                <span *ngIf="!isDeploying && githubConnected">Deploy to GitHub</span>
+                <span *ngIf="isDeploying">Deploying...</span>
+              </button>
             </div>
-            
+
+            <!-- Success message after deployment (add this right after the action buttons) -->
+            <div *ngIf="deployedUrl" class="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div class="flex items-center mb-3">
+                <svg class="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"></path>
+                </svg>
+                <span class="text-green-800 font-bold">🎉 Website deployed to GitHub Pages!</span>
+              </div>
+              <div class="space-y-2">
+                <a [href]="deployedUrl" target="_blank"
+                  class="block text-blue-600 hover:text-blue-800 font-medium underline">
+                  🌐 Visit your live website: {{ deployedUrl }}
+                </a>
+                <p class="text-sm text-green-700">
+                  <strong>Note:</strong> GitHub Pages may take 2-3 minutes to become available after deployment.
+                </p>
+              </div>
+            </div>
+
+            <!-- Error message (add this after success message) -->
+            <div *ngIf="deploymentError" class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div class="flex items-center">
+                <svg class="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clip-rule="evenodd"></path>
+                </svg>
+                <span class="text-red-800">{{ deploymentError }}</span>
+              </div>
+            </div>
+
             <!-- Success Info -->
             <div class="bg-white border border-green-200 rounded-lg p-4 mt-6">
               <h4 class="font-semibold text-green-800 mb-2">What's Next?</h4>
@@ -5689,27 +5778,23 @@ SIZE: 19241 bytes (18.8 KB)
           </div>
         </div>
       </div>
-    </div> 
+    </div>
 
   </div>
 
   <!-- Navigation Footer -->
   <div class="flex justify-between items-center mt-8 pt-6 border-t border-warm-peach">
-    <button *ngIf="currentStep > 1 && currentStep < 5" 
-            (click)="previousStep()" 
-            class="btn-secondary">
+    <button *ngIf="currentStep > 1 && currentStep < 5" (click)="previousStep()" class="btn-secondary">
       <span class="mr-2">←</span>
       Back
     </button>
     <div *ngIf="currentStep === 1 || currentStep === 5"></div>
-    
+
     <div class="flex items-center space-x-4">
       <span class="text-sm warm-text-secondary">
         Step {{ currentStep }} of {{ wizardSteps.length }}
       </span>
-      <button *ngIf="canProceed() && currentStep < 5" 
-              (click)="nextStep()" 
-              class="btn-primary">
+      <button *ngIf="canProceed() && currentStep < 5" (click)="nextStep()" class="btn-primary">
         {{ getNextButtonText() }}
         <span class="ml-2">→</span>
       </button>
@@ -5718,14 +5803,396 @@ SIZE: 19241 bytes (18.8 KB)
 </div>
 
 <!-- Preview Modal -->
-<app-preview-modal
-  [isOpen]="showPreviewModal"
-  [generationId]="generationId"
-  (closeEvent)="closePreview()"
+<app-preview-modal [isOpen]="showPreviewModal" [generationId]="generationId" (closeEvent)="closePreview()"
   (downloadEvent)="onDownloadFromPreview($event)">
 </app-preview-modal>
 
 [END OF FILE: frontend\src\app\components\cv-wizard\cv-wizard.component.html]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\components\deploy-website\deploy-website.component.html
+SIZE: 13717 bytes (13.4 KB)
+--------------------------------------------------------------------------------
+<div class="deploy-website-container bg-white rounded-lg shadow-md p-6 mt-6">
+  
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h3 class="text-lg font-semibold text-gray-900">Deploy Your Website</h3>
+      <p class="text-sm text-gray-600">Publish your CV as a live website on GitHub Pages</p>
+    </div>
+    <div class="flex items-center space-x-2">
+      <svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd"></path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- GitHub Connection Required -->
+  <div *ngIf="!hasGitHubConnection" class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+    <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+    </svg>
+    
+    <h4 class="text-lg font-medium text-gray-900 mb-2">Connect Your GitHub Account</h4>
+    <p class="text-gray-600 mb-4">To deploy your website, you need to connect your GitHub account. This allows us to create a repository and enable GitHub Pages hosting.</p>
+    
+    <button 
+      (click)="connectGitHub()"
+      class="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors">
+      <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+      </svg>
+      Connect GitHub
+    </button>
+  </div>
+
+  <!-- Deploy Form -->
+  <div *ngIf="hasGitHubConnection && !showDeployForm && !deployedUrls" class="text-center">
+    <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+      <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+    </div>
+    
+    <h4 class="text-lg font-medium text-gray-900 mb-2">Ready to Deploy!</h4>
+    <p class="text-gray-600 mb-4">Your GitHub account is connected. You can now deploy your CV as a live website.</p>
+    
+    <button 
+      (click)="showDeploymentForm()"
+      class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+      </svg>
+      Deploy Website
+    </button>
+  </div>
+
+  <!-- Deployment Configuration -->
+  <div *ngIf="showDeployForm && !deployedUrls" class="space-y-4">
+    
+    <!-- Site Name Input -->
+    <div>
+      <label for="siteName" class="block text-sm font-medium text-gray-700 mb-2">
+        Website Name
+      </label>
+      <input
+        id="siteName"
+        type="text"
+        [(ngModel)]="siteName"
+        [disabled]="isDeploying"
+        placeholder="my-awesome-portfolio"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+      />
+      <p class="mt-1 text-xs text-gray-500">
+        This will create a GitHub repository named: <span class="font-mono">{{ siteName }}-landing</span>
+      </p>
+    </div>
+
+    <!-- Preview URLs -->
+    <div class="bg-gray-50 rounded-md p-4">
+      <h5 class="text-sm font-medium text-gray-700 mb-2">Your website will be available at:</h5>
+      <div class="space-y-1 text-sm">
+        <div class="flex items-center text-gray-600">
+          <svg class="w-4 h-4 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+          <span class="font-mono">username.github.io/{{ siteName }}-landing</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Display -->
+    <div *ngIf="deploymentError" class="bg-red-50 border border-red-200 rounded-md p-4">
+      <div class="flex items-center">
+        <svg class="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+        </svg>
+        <span class="text-red-800 text-sm">{{ deploymentError }}</span>
+      </div>
+    </div>
+
+    <!-- Deploy Button -->
+    <div class="flex items-center justify-between pt-4">
+      <button
+        (click)="resetForm()"
+        [disabled]="isDeploying"
+        class="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
+        Cancel
+      </button>
+      
+      <button
+        (click)="deployWebsite()"
+        [disabled]="isDeploying || !siteName.trim()"
+        class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium">
+        
+        <svg *ngIf="isDeploying" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        
+        <svg *ngIf="!isDeploying" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+        </svg>
+        
+        {{ isDeploying ? 'Deploying...' : 'Deploy Website' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Deployment Progress -->
+  <div *ngIf="isDeploying" class="mt-6">
+    <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+      <div class="flex items-center">
+        <svg class="animate-spin h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="text-blue-800 text-sm font-medium">{{ deploymentStatus }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deployment Success -->
+  <div *ngIf="deployedUrls" class="space-y-4">
+    
+    <!-- Success Message -->
+    <div class="bg-green-50 border border-green-200 rounded-md p-4">
+      <div class="flex items-center">
+        <svg class="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        <span class="text-green-800 font-medium">Website deployed successfully!</span>
+      </div>
+    </div>
+
+    <!-- Deployed URLs -->
+    <div class="bg-gray-50 rounded-md p-4">
+      <h5 class="text-sm font-medium text-gray-700 mb-3">Your website is now live:</h5>
+      
+      <div class="space-y-3">
+        <!-- Live Website -->
+        <div class="flex items-center justify-between p-3 bg-white rounded border">
+          <div class="flex items-center">
+            <svg class="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"></path>
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-gray-900">Live Website</p>
+              <p class="text-xs text-gray-500">GitHub Pages (may take 2-3 minutes to become available)</p>
+            </div>
+          </div>
+          <a [href]="deployedUrls.pages" target="_blank" 
+             class="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
+            Visit Site
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+            </svg>
+          </a>
+        </div>
+
+        <!-- GitHub Repository -->
+        <div class="flex items-center justify-between p-3 bg-white rounded border">
+          <div class="flex items-center">
+            <svg class="w-5 h-5 text-gray-600 mr-3" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-gray-900">Source Code</p>
+              <p class="text-xs text-gray-500">GitHub Repository</p>
+            </div>
+          </div>
+          <a [href]="deployedUrls.github" target="_blank" 
+             class="inline-flex items-center px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors">
+            View Repo
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center justify-between pt-4">
+      <button
+        (click)="deleteDeployment()"
+        class="text-red-600 hover:text-red-800 text-sm font-medium">
+        Delete Deployment
+      </button>
+      
+      <div class="space-x-3">
+        <button
+          (click)="resetForm()"
+          class="px-4 py-2 text-gray-600 hover:text-gray-800">
+          Deploy Another
+        </button>
+        
+        <button
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          (click)="deploymentComplete.emit({ success: true, urls: deployedUrls })">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+[END OF FILE: frontend\src\app\components\deploy-website\deploy-website.component.html]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\components\github-test\github-test.html
+SIZE: 27 bytes (0 KB)
+--------------------------------------------------------------------------------
+<p>github-test works!</p>
+
+[END OF FILE: frontend\src\app\components\github-test\github-test.html]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\pages\sites\sites.component.html
+SIZE: 6486 bytes (6.3 KB)
+--------------------------------------------------------------------------------
+<div class="min-h-screen bg-gray-50 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">My Landing Pages</h1>
+      <p class="mt-2 text-gray-600">Manage your deployed CV landing pages</p>
+    </div>
+
+    <!-- GitHub Connection Status -->
+    <div *ngIf="!hasGitHubConnection" class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-blue-800">
+              Connect your GitHub account to deploy landing pages automatically
+            </p>
+          </div>
+        </div>
+        <button
+          (click)="connectGitHub()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          Connect GitHub
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+      <p class="mt-4 text-gray-600">Loading your sites...</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error && !loading" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+      <p class="text-red-800">{{ error }}</p>
+      <button
+        (click)="loadSites()"
+        class="mt-2 text-red-600 hover:text-red-800 font-medium">
+        Try Again
+      </button>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!loading && sites.length === 0 && !error" class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900">No landing pages yet</h3>
+      <p class="mt-1 text-sm text-gray-500">Get started by creating your first landing page from your CV.</p>
+      <div class="mt-6">
+        <button
+          (click)="createNewSite()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          Create Landing Page
+        </button>
+      </div>
+    </div>
+
+    <!-- Sites Grid -->
+    <div *ngIf="!loading && sites.length > 0" class="space-y-6">
+      
+      <!-- Create New Button -->
+      <div class="flex justify-end">
+        <button
+          (click)="createNewSite()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          + New Landing Page
+        </button>
+      </div>
+
+      <!-- Sites List -->
+      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div *ngFor="let site of sites" class="bg-white rounded-lg shadow-md overflow-hidden">
+          
+          <!-- Site Header -->
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 truncate">{{ site.site_name }}</h3>
+              <span [class]="'px-2 py-1 text-xs font-medium rounded-full ' + getStatusClass(site.deployment_status)">
+                {{ getStatusText(site.deployment_status) }}
+              </span>
+            </div>
+
+            <p class="text-sm text-gray-500 mb-4">{{ site.repo_name }}</p>
+
+            <!-- Site Links -->
+            <div class="space-y-2 mb-4">
+              <a *ngIf="site.pages_url && site.deployment_status === 'deployed'" 
+                 [href]="site.pages_url" 
+                 target="_blank"
+                 class="flex items-center text-blue-600 hover:text-blue-800 text-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+                View Live Site
+              </a>
+
+              <a *ngIf="site.github_url" 
+                 [href]="site.github_url" 
+                 target="_blank"
+                 class="flex items-center text-gray-600 hover:text-gray-800 text-sm">
+                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                View Repository
+              </a>
+            </div>
+
+            <!-- Site Meta -->
+            <div class="text-xs text-gray-500">
+              Created {{ formatDate(site.created_at) }}
+            </div>
+          </div>
+
+          <!-- Site Actions -->
+          <div class="bg-gray-50 px-6 py-3 flex justify-between items-center">
+            <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+              Update
+            </button>
+            <button 
+              (click)="deleteSite(site)"
+              class="text-red-600 hover:text-red-800 text-sm font-medium">
+              Delete
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+[END OF FILE: frontend\src\app\pages\sites\sites.component.html]
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\styles.scss
@@ -6356,7 +6823,7 @@ SIZE: 0 bytes (0 KB)
 
 --------------------------------------------------------------------------------
 FILE: frontend\src\app\components\cv-wizard\cv-wizard.component.scss
-SIZE: 14430 bytes (14.1 KB)
+SIZE: 14432 bytes (14.1 KB)
 --------------------------------------------------------------------------------
 /* Component-specific warm styling */
 .cv-wizard {
@@ -7082,8 +7549,62 @@ SIZE: 14430 bytes (14.1 KB)
 [END OF FILE: frontend\src\app\components\cv-wizard\cv-wizard.component.scss]
 
 --------------------------------------------------------------------------------
+FILE: frontend\src\app\components\deploy-website\deploy-website.component.scss
+SIZE: 398 bytes (0.4 KB)
+--------------------------------------------------------------------------------
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.deploy-website-container {
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease-in-out;
+}
+
+.deploy-website-container:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+[END OF FILE: frontend\src\app\components\deploy-website\deploy-website.component.scss]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\components\github-test\github-test.scss
+SIZE: 0 bytes (0 KB)
+--------------------------------------------------------------------------------
+
+[END OF FILE: frontend\src\app\components\github-test\github-test.scss]
+
+--------------------------------------------------------------------------------
+FILE: frontend\src\app\pages\sites\sites.component.scss
+SIZE: 171 bytes (0.2 KB)
+--------------------------------------------------------------------------------
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+[END OF FILE: frontend\src\app\pages\sites\sites.component.scss]
+
+--------------------------------------------------------------------------------
 FILE: frontend\angular.json
-SIZE: 2674 bytes (2.6 KB)
+SIZE: 2756 bytes (2.7 KB)
 --------------------------------------------------------------------------------
 {
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
@@ -7146,6 +7667,9 @@ SIZE: 2674 bytes (2.6 KB)
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
           "configurations": {
             "production": {
               "buildTarget": "frontend:build:production"
@@ -7232,6 +7756,20 @@ SIZE: 1098 bytes (1.1 KB)
 }
 
 [END OF FILE: frontend\package.json]
+
+--------------------------------------------------------------------------------
+FILE: frontend\proxy.conf.json
+SIZE: 111 bytes (0.1 KB)
+--------------------------------------------------------------------------------
+{
+  "/api/*": {
+    "target": "http://localhost:3000",
+    "secure": true,
+    "changeOrigin": true
+  }
+}
+
+[END OF FILE: frontend\proxy.conf.json]
 
 --------------------------------------------------------------------------------
 FILE: frontend\tsconfig.app.json
@@ -10933,8 +11471,744 @@ module.exports = CVParser;
 [END OF FILE: lib\cv-parser.js]
 
 --------------------------------------------------------------------------------
+FILE: lib\database.js
+SIZE: 17023 bytes (16.6 KB)
+--------------------------------------------------------------------------------
+// File: lib/database.js
+const mysql = require('mysql2/promise');
+const crypto = require('crypto');
+
+class Database {
+    constructor() {
+        this.connection = null;
+        this.encryptionKey = process.env.ENCRYPTION_KEY || 'fallback-key-change-in-production';
+    }
+
+    async connect() {
+        if (this.connection) return this.connection;
+
+        try {
+            this.connection = await mysql.createConnection({
+                uri: process.env.DATABASE_URL,
+                ssl: { rejectUnauthorized: true }
+            });
+
+            console.log('✅ Connected to PlanetScale database');
+            return this.connection;
+        } catch (error) {
+            console.error('❌ Database connection failed:', error.message);
+            throw new Error('Failed to connect to database: ' + error.message);
+        }
+    }
+
+    // Encryption utilities for sensitive data
+    encrypt(text) {
+        if (!text) return null;
+        const cipher = crypto.createCipher('aes256', this.encryptionKey);
+        return cipher.update(text, 'utf8', 'hex') + cipher.final('hex');
+    }
+
+    decrypt(encryptedText) {
+        if (!encryptedText) return null;
+        const decipher = crypto.createDecipher('aes256', this.encryptionKey);
+        return decipher.update(encryptedText, 'hex', 'utf8') + decipher.final('utf8');
+    }
+
+    // User management
+    async createUser(userData) {
+        const connection = await this.connect();
+
+        try {
+            const [result] = await connection.execute(
+                `INSERT INTO users (email, name, github_username, github_access_token, google_id) 
+                 VALUES (?, ?, ?, ?, ?)`,
+                [
+                    userData.email,
+                    userData.name,
+                    userData.github_username || null,
+                    userData.github_access_token ? this.encrypt(userData.github_access_token) : null,
+                    userData.google_id || null
+                ]
+            );
+
+            // Get the created user
+            const [users] = await connection.execute(
+                'SELECT * FROM users WHERE id = ?',
+                [result.insertId]
+            );
+
+            const user = users[0];
+            if (user.github_access_token) {
+                user.github_access_token = this.decrypt(user.github_access_token);
+            }
+
+            console.log(`✅ User created: ${userData.email}`);
+            return user;
+        } catch (error) {
+            console.error('❌ Create user failed:', error.message);
+            throw new Error('Failed to create user: ' + error.message);
+        }
+    }
+
+    async getUserByEmail(email) {
+        const connection = await this.connect();
+
+        try {
+            const [users] = await connection.execute(
+                'SELECT * FROM users WHERE email = ?',
+                [email]
+            );
+
+            if (users.length === 0) return null;
+
+            const user = users[0];
+            if (user.github_access_token) {
+                user.github_access_token = this.decrypt(user.github_access_token);
+            }
+
+            return user;
+        } catch (error) {
+            console.error('❌ Get user by email failed:', error.message);
+            throw new Error('Failed to get user: ' + error.message);
+        }
+    }
+
+    async getUserById(userId) {
+        const connection = await this.connect();
+
+        try {
+            const [users] = await connection.execute(
+                'SELECT * FROM users WHERE id = ?',
+                [userId]
+            );
+
+            if (users.length === 0) return null;
+
+            const user = users[0];
+            if (user.github_access_token) {
+                user.github_access_token = this.decrypt(user.github_access_token);
+            }
+
+            return user;
+        } catch (error) {
+            console.error('❌ Get user by ID failed:', error.message);
+            throw new Error('Failed to get user: ' + error.message);
+        }
+    }
+
+    async updateUserGitHubToken(userId, githubData) {
+        const connection = await this.connect();
+
+        try {
+            await connection.execute(
+                `UPDATE users 
+                 SET github_username = ?, github_access_token = ?, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = ?`,
+                [
+                    githubData.username,
+                    this.encrypt(githubData.access_token),
+                    userId
+                ]
+            );
+
+            console.log(`✅ GitHub token updated for user: ${userId}`);
+            return true;
+        } catch (error) {
+            console.error('❌ Update GitHub token failed:', error.message);
+            throw new Error('Failed to update GitHub token: ' + error.message);
+        }
+    }
+
+    // Site management
+    async createUserSite(siteData) {
+        const connection = await this.connect();
+
+        try {
+            const [result] = await connection.execute(
+                `INSERT INTO user_sites 
+                 (user_id, site_name, repo_name, github_url, pages_url, vercel_url, custom_domain, deployment_status, cv_data) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    siteData.user_id,
+                    siteData.site_name,
+                    siteData.repo_name,
+                    siteData.github_url,
+                    siteData.pages_url || null,
+                    siteData.vercel_url || null,
+                    siteData.custom_domain || null,
+                    siteData.deployment_status || 'pending',
+                    siteData.cv_data ? JSON.stringify(siteData.cv_data) : null
+                ]
+            );
+
+            // Get the created site
+            const [sites] = await connection.execute(
+                'SELECT * FROM user_sites WHERE id = ?',
+                [result.insertId]
+            );
+
+            const site = sites[0];
+            if (site.cv_data) {
+                site.cv_data = JSON.parse(site.cv_data);
+            }
+
+            console.log(`✅ Site created: ${siteData.repo_name} for user ${siteData.user_id}`);
+            return site;
+        } catch (error) {
+            console.error('❌ Create site failed:', error.message);
+            throw new Error('Failed to create site: ' + error.message);
+        }
+    }
+
+    async getUserSites(userId) {
+        const connection = await this.connect();
+
+        try {
+            const [sites] = await connection.execute(
+                'SELECT * FROM user_sites WHERE user_id = ? ORDER BY created_at DESC',
+                [userId]
+            );
+
+            // Parse JSON data
+            sites.forEach(site => {
+                if (site.cv_data) {
+                    try {
+                        site.cv_data = JSON.parse(site.cv_data);
+                    } catch (e) {
+                        console.warn('Failed to parse cv_data for site:', site.id);
+                        site.cv_data = null;
+                    }
+                }
+            });
+
+            return sites;
+        } catch (error) {
+            console.error('❌ Get user sites failed:', error.message);
+            throw new Error('Failed to get user sites: ' + error.message);
+        }
+    }
+
+    async updateSiteDeploymentStatus(siteId, status, urls = {}) {
+        const connection = await this.connect();
+
+        try {
+            await connection.execute(
+                `UPDATE user_sites 
+                 SET deployment_status = ?, pages_url = COALESCE(?, pages_url), 
+                     vercel_url = COALESCE(?, vercel_url), updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = ?`,
+                [status, urls.pages_url, urls.vercel_url, siteId]
+            );
+
+            console.log(`✅ Site deployment status updated: ${siteId} -> ${status}`);
+            return true;
+        } catch (error) {
+            console.error('❌ Update deployment status failed:', error.message);
+            throw new Error('Failed to update deployment status: ' + error.message);
+        }
+    }
+
+    // User preferences
+    async getUserPreferences(userId) {
+        const connection = await this.connect();
+
+        try {
+            const [prefs] = await connection.execute(
+                'SELECT * FROM user_preferences WHERE user_id = ?',
+                [userId]
+            );
+
+            if (prefs.length === 0) {
+                // Create default preferences
+                return await this.createDefaultPreferences(userId);
+            }
+
+            const preferences = prefs[0];
+            if (preferences.preferences) {
+                try {
+                    preferences.preferences = JSON.parse(preferences.preferences);
+                } catch (e) {
+                    preferences.preferences = {};
+                }
+            }
+
+            return preferences;
+        } catch (error) {
+            console.error('❌ Get user preferences failed:', error.message);
+            throw new Error('Failed to get preferences: ' + error.message);
+        }
+    }
+
+    async createDefaultPreferences(userId) {
+        const connection = await this.connect();
+
+        try {
+            await connection.execute(
+                `INSERT INTO user_preferences (user_id, vercel_enabled, email_notifications, theme_preference) 
+                 VALUES (?, FALSE, TRUE, 'professional')`,
+                [userId]
+            );
+
+            return await this.getUserPreferences(userId);
+        } catch (error) {
+            console.error('❌ Create default preferences failed:', error.message);
+            throw new Error('Failed to create preferences: ' + error.message);
+        }
+    }
+
+    // Logging for debugging
+    async logOperation(userId, operationType, status, errorMessage = null, processingTime = null) {
+        const connection = await this.connect();
+
+        try {
+            await connection.execute(
+                `INSERT INTO processing_logs (user_id, operation_type, status, error_message, processing_time_ms) 
+                 VALUES (?, ?, ?, ?, ?)`,
+                [userId, operationType, status, errorMessage, processingTime]
+            );
+        } catch (error) {
+            console.warn('Failed to log operation:', error.message);
+            // Don't throw here - logging failures shouldn't break the main flow
+        }
+    }
+
+    // Health check
+    async healthCheck() {
+        try {
+            const connection = await this.connect();
+            const [result] = await connection.execute('SELECT 1 as health');
+            return result[0].health === 1;
+        } catch (error) {
+            console.error('❌ Database health check failed:', error.message);
+            return false;
+        }
+    }
+
+    // Close connection (for cleanup)
+    async close() {
+        if (this.connection) {
+            await this.connection.end();
+            this.connection = null;
+            console.log('Database connection closed');
+        }
+    }
+
+    // GitHub-related user methods
+    async updateUser(userId, updates) {
+        try {
+            const connection = await this.connect();
+
+            // Build dynamic update query
+            const updateFields = [];
+            const updateValues = [];
+
+            if (updates.github_username !== undefined) {
+                updateFields.push('github_username = ?');
+                updateValues.push(updates.github_username);
+            }
+
+            if (updates.github_access_token !== undefined) {
+                updateFields.push('github_access_token = ?');
+                updateValues.push(updates.github_access_token);
+            }
+
+            if (updateFields.length === 0) {
+                throw new Error('No update fields provided');
+            }
+
+            updateFields.push('updated_at = CURRENT_TIMESTAMP');
+            updateValues.push(userId);
+
+            const updateQuery = `
+                UPDATE users 
+                SET ${updateFields.join(', ')}
+                WHERE id = ?
+            `;
+
+            const [result] = await connection.execute(updateQuery, updateValues);
+
+            if (result.affectedRows === 0) {
+                throw new Error('User not found');
+            }
+
+            console.log(`✅ Updated user ${userId} with GitHub credentials`);
+            return true;
+
+        } catch (error) {
+            console.error('❌ Failed to update user:', error.message);
+            throw error;
+        }
+    }
+
+    // Get user's GitHub credentials
+    async getUserGitHubCredentials(userId) {
+        try {
+            const connection = await this.connect();
+            const [rows] = await connection.execute(
+                'SELECT github_username, github_access_token FROM users WHERE id = ?',
+                [userId]
+            );
+
+            if (rows.length === 0) {
+                throw new Error('User not found');
+            }
+
+            const user = rows[0];
+
+            // Decrypt token if it exists
+            if (user.github_access_token) {
+                user.github_access_token = Buffer.from(user.github_access_token, 'base64').toString();
+            }
+
+            return user;
+
+        } catch (error) {
+            console.error('❌ Failed to get GitHub credentials:', error.message);
+            throw error;
+        }
+    }
+
+    // Check if user has GitHub connected
+    async hasGitHubConnection(userId) {
+        try {
+            const credentials = await this.getUserGitHubCredentials(userId);
+            return !!(credentials.github_username && credentials.github_access_token);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // Site management methods (for next steps)
+    async createSite(userId, siteData) {
+        try {
+            const connection = await this.connect();
+            const [result] = await connection.execute(`
+                INSERT INTO user_sites (
+                    user_id, site_name, repo_name, 
+                    deployment_status, cv_data, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `, [
+                userId,
+                siteData.site_name,
+                siteData.repo_name,
+                'pending',
+                JSON.stringify(siteData.cv_data)
+            ]);
+
+            console.log(`✅ Created site record for user ${userId}`);
+            return result.insertId;
+
+        } catch (error) {
+            console.error('❌ Failed to create site:', error.message);
+            throw error;
+        }
+    }
+
+    async updateSiteStatus(siteId, status, urls = {}) {
+        try {
+            const connection = await this.connect();
+
+            const updateFields = ['deployment_status = ?', 'updated_at = CURRENT_TIMESTAMP'];
+            const updateValues = [status];
+
+            if (urls.github_url) {
+                updateFields.push('github_url = ?');
+                updateValues.push(urls.github_url);
+            }
+
+            if (urls.pages_url) {
+                updateFields.push('pages_url = ?');
+                updateValues.push(urls.pages_url);
+            }
+
+            if (urls.vercel_url) {
+                updateFields.push('vercel_url = ?');
+                updateValues.push(urls.vercel_url);
+            }
+
+            updateValues.push(siteId);
+
+            const [result] = await connection.execute(`
+                UPDATE user_sites 
+                SET ${updateFields.join(', ')}
+                WHERE id = ?
+            `, updateValues);
+
+            if (result.affectedRows === 0) {
+                throw new Error('Site not found');
+            }
+
+            console.log(`✅ Updated site ${siteId} status to ${status}`);
+            return true;
+
+        } catch (error) {
+            console.error('❌ Failed to update site status:', error.message);
+            throw error;
+        }
+    }
+
+    async getUserSites(userId) {
+        try {
+            const connection = await this.connect();
+            const [rows] = await connection.execute(`
+                SELECT id, site_name, repo_name, github_url, pages_url, vercel_url,
+                       deployment_status, created_at, updated_at
+                FROM user_sites 
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+            `, [userId]);
+
+            return rows;
+
+        } catch (error) {
+            console.error('❌ Failed to get user sites:', error.message);
+            throw error;
+        }
+    }
+}
+
+// Export singleton instance
+const database = new Database();
+module.exports = database;
+
+[END OF FILE: lib\database.js]
+
+--------------------------------------------------------------------------------
+FILE: lib\github-client.js
+SIZE: 8256 bytes (8.1 KB)
+--------------------------------------------------------------------------------
+// lib/github-client.js
+class GitHubClient {
+    constructor(accessToken) {
+        this.accessToken = accessToken;
+        this.baseUrl = 'https://api.github.com';
+    }
+
+    async createRepository(repoName, description = '') {
+        console.log('🏗️ Creating GitHub repository:', repoName);
+        
+        try {
+            const response = await fetch(`${this.baseUrl}/user/repos`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${this.accessToken}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'CV-Landing-Generator'
+                },
+                body: JSON.stringify({
+                    name: repoName,
+                    description: description,
+                    private: false,
+                    auto_init: false, // We'll push our own files
+                    has_issues: false,
+                    has_projects: false,
+                    has_wiki: false
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`GitHub API error: ${response.status} - ${errorData.message}`);
+            }
+
+            const repo = await response.json();
+            console.log('✅ Repository created:', repo.html_url);
+
+            return {
+                id: repo.id,
+                name: repo.name,
+                fullName: repo.full_name,
+                htmlUrl: repo.html_url,
+                cloneUrl: repo.clone_url,
+                defaultBranch: repo.default_branch || 'main'
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to create repository:', error);
+            throw error;
+        }
+    }
+
+    async uploadFiles(repoName, files) {
+        console.log('📤 Uploading files to repository:', repoName);
+        console.log('   Files to upload:', Object.keys(files));
+
+        try {
+            // Get repository info
+            const repoInfo = await this.getRepository(repoName);
+            const branch = repoInfo.defaultBranch;
+
+            // For empty repositories, we need to use the Contents API approach
+            console.log('📝 Uploading files to empty repository using Contents API...');
+            
+            let lastCommitData = null;
+            
+            // Upload each file sequentially to avoid conflicts
+            for (const [fileName, content] of Object.entries(files)) {
+                console.log(`   Uploading: ${fileName}`);
+                
+                const response = await fetch(`${this.baseUrl}/repos/${repoInfo.fullName}/contents/${fileName}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${this.accessToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'CV-Landing-Generator'
+                    },
+                    body: JSON.stringify({
+                        message: `Add ${fileName}`,
+                        content: Buffer.from(content, 'utf8').toString('base64'),
+                        branch: branch
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Failed to upload ${fileName}: ${errorData.message}`);
+                }
+                
+                lastCommitData = await response.json();
+                console.log(`   ✅ Uploaded: ${fileName}`);
+                
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            console.log('✅ All files uploaded successfully');
+            
+            return {
+                commitSha: lastCommitData.commit.sha,
+                commitUrl: lastCommitData.commit.html_url
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to upload files:', error);
+            throw error;
+        }
+    }
+
+    async enableGitHubPages(repoName) {
+        console.log('📄 Enabling GitHub Pages for:', repoName);
+
+        try {
+            const repoInfo = await this.getRepository(repoName);
+            
+            const response = await fetch(`${this.baseUrl}/repos/${repoInfo.fullName}/pages`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${this.accessToken}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'CV-Landing-Generator'
+                },
+                body: JSON.stringify({
+                    source: {
+                        branch: repoInfo.defaultBranch,
+                        path: '/'
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                
+                // GitHub Pages might already be enabled
+                if (response.status === 409) {
+                    console.log('⚠️ GitHub Pages already enabled');
+                    return await this.getGitHubPagesInfo(repoName);
+                }
+                
+                throw new Error(`Failed to enable GitHub Pages: ${errorData.message}`);
+            }
+
+            const pages = await response.json();
+            console.log('✅ GitHub Pages enabled:', pages.html_url);
+
+            return {
+                url: pages.html_url,
+                status: pages.status,
+                source: pages.source
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to enable GitHub Pages:', error);
+            throw error;
+        }
+    }
+
+    async getRepository(repoName) {
+        try {
+            const response = await fetch(`${this.baseUrl}/user/repos`, {
+                headers: {
+                    'Authorization': `token ${this.accessToken}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'CV-Landing-Generator'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to get repositories: ${response.status}`);
+            }
+
+            const repos = await response.json();
+            const repo = repos.find(r => r.name === repoName);
+
+            if (!repo) {
+                throw new Error(`Repository ${repoName} not found`);
+            }
+
+            return {
+                id: repo.id,
+                name: repo.name,
+                fullName: repo.full_name,
+                htmlUrl: repo.html_url,
+                defaultBranch: repo.default_branch || 'main'
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to get repository info:', error);
+            throw error;
+        }
+    }
+
+    async getGitHubPagesInfo(repoName) {
+        try {
+            const repoInfo = await this.getRepository(repoName);
+            
+            const response = await fetch(`${this.baseUrl}/repos/${repoInfo.fullName}/pages`, {
+                headers: {
+                    'Authorization': `token ${this.accessToken}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'CV-Landing-Generator'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to get GitHub Pages info: ${response.status}`);
+            }
+
+            const pages = await response.json();
+            return {
+                url: pages.html_url,
+                status: pages.status,
+                source: pages.source
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to get GitHub Pages info:', error);
+            throw error;
+        }
+    }
+}
+
+module.exports = GitHubClient;
+
+[END OF FILE: lib\github-client.js]
+
+--------------------------------------------------------------------------------
 FILE: lib\template-processor.js
-SIZE: 22949 bytes (22.4 KB)
+SIZE: 34422 bytes (33.6 KB)
 --------------------------------------------------------------------------------
 // File: lib/template-processor.js
 const fs = require('fs');
@@ -11523,6 +12797,392 @@ const cvData = ${JSON.stringify(finalCvData, null, 2)};
             fs.rmSync(tempDir, { recursive: true, force: true });
             console.log('Cleaned up temporary files');
         }
+    }
+
+    // GitHub-specific file generation methods
+    async generateForGitHub(cvData, outputDir) {
+        try {
+            console.log('Generating landing page for GitHub deployment...');
+
+            // Generate the standard landing page files
+            await this.generateLandingPage(cvData, outputDir);
+
+            // Add GitHub-specific files
+            await this.generateGitHubFiles(cvData, outputDir);
+
+            console.log('✅ Generated all files for GitHub deployment');
+            return true;
+
+        } catch (error) {
+            console.error('❌ Failed to generate GitHub files:', error.message);
+            throw error;
+        }
+    }
+
+    async generateGitHubFiles(cvData, outputDir) {
+        // Generate README.md
+        const readmeContent = this.generateReadmeContent(cvData);
+        fs.writeFileSync(path.join(outputDir, 'README.md'), readmeContent, 'utf8');
+
+        // Generate .gitignore
+        const gitignoreContent = this.generateGitignoreContent();
+        fs.writeFileSync(path.join(outputDir, '.gitignore'), gitignoreContent, 'utf8');
+
+        // Generate vercel.json for future Vercel integration
+        const vercelConfig = this.generateVercelConfig();
+        fs.writeFileSync(path.join(outputDir, 'vercel.json'), vercelConfig, 'utf8');
+
+        // Generate package.json (minimal, for completeness)
+        const packageJson = this.generatePackageJson(cvData);
+        fs.writeFileSync(path.join(outputDir, 'package.json'), packageJson, 'utf8');
+
+        console.log('Generated GitHub-specific files');
+    }
+
+    generateReadmeContent(cvData) {
+        const name = cvData.personalInfo.name;
+        const title = cvData.personalInfo.currentTitle || 'Professional';
+
+        return `# ${name} - Professional Landing Page
+
+${title} with expertise in various technologies and proven track record.
+
+## 🌐 Live Site
+This landing page is automatically deployed via GitHub Pages.
+
+## 📋 About This Site
+This professional landing page was generated from CV data and includes:
+
+### ✨ Features
+- **Responsive Design**: Optimized for all devices and screen sizes
+- **Professional Layout**: Clean, modern design focused on readability
+- **Fast Loading**: Optimized CSS and JavaScript for quick load times
+- **SEO Friendly**: Structured data and meta tags for search engines
+- **Accessible**: WCAG compliant design for all users
+
+### 🛠 Technology Stack
+- **HTML5**: Semantic markup for better structure
+- **CSS3**: Modern styling with Tailwind CSS utilities
+- **JavaScript**: Vanilla JS for smooth interactions
+- **GitHub Pages**: Reliable, fast hosting
+- **Responsive Design**: Mobile-first approach
+
+## 📊 Sections Included
+${this.generateSectionsList(cvData)}
+
+## 🔧 Technical Details
+- **Build System**: Static site generation
+- **Deployment**: Automated via GitHub Pages
+- **Performance**: Optimized for Core Web Vitals
+- **Compatibility**: Works on all modern browsers
+
+## 📞 Contact Information
+${cvData.personalInfo.email ? `- **Email**: ${cvData.personalInfo.email}` : ''}
+${cvData.personalInfo.phone ? `- **Phone**: ${cvData.personalInfo.phone}` : ''}
+${cvData.personalInfo.location ? `- **Location**: ${cvData.personalInfo.location}` : ''}
+
+---
+
+*Generated on ${new Date().toLocaleDateString()} using CV Landing Generator*
+
+### 🔄 Updates
+This site can be automatically updated when CV information changes. The deployment process ensures the latest information is always displayed.
+
+### 🚀 Performance
+- Lighthouse Score: Optimized for 90+ in all categories
+- Load Time: < 2 seconds on 3G networks
+- Accessibility: WCAG 2.1 AA compliant
+`;
+    }
+
+    generateSectionsList(cvData) {
+        const sections = [];
+
+        if (cvData.personalInfo && cvData.personalInfo.summary) {
+            sections.push('- **Professional Summary**: Overview of experience and goals');
+        }
+
+        if (cvData.experience && cvData.experience.length > 0) {
+            sections.push(`- **Work Experience**: ${cvData.experience.length} professional positions`);
+        }
+
+        if (cvData.skills && (cvData.skills.technical?.length > 0 || cvData.skills.soft?.length > 0)) {
+            sections.push('- **Skills**: Technical and soft skills breakdown');
+        }
+
+        if (cvData.education && cvData.education.length > 0) {
+            sections.push(`- **Education**: ${cvData.education.length} educational achievements`);
+        }
+
+        if (cvData.projects && cvData.projects.length > 0) {
+            sections.push(`- **Projects**: ${cvData.projects.length} notable projects and contributions`);
+        }
+
+        if (cvData.certifications && cvData.certifications.length > 0) {
+            sections.push(`- **Certifications**: ${cvData.certifications.length} professional certifications`);
+        }
+
+        return sections.join('\n');
+    }
+
+    generateGitignoreContent() {
+        return `# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Editor directories and files
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+`;
+    }
+
+    generateVercelConfig() {
+        return JSON.stringify({
+            "version": 2,
+            "name": "cv-landing-page",
+            "builds": [
+                {
+                    "src": "**/*",
+                    "use": "@vercel/static"
+                }
+            ],
+            "routes": [
+                {
+                    "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))",
+                    "headers": {
+                        "cache-control": "public, max-age=31536000, immutable"
+                    },
+                    "dest": "/$1"
+                },
+                {
+                    "src": "/(.*)",
+                    "dest": "/$1"
+                }
+            ],
+            "headers": [
+                {
+                    "source": "/(.*)",
+                    "headers": [
+                        {
+                            "key": "X-Content-Type-Options",
+                            "value": "nosniff"
+                        },
+                        {
+                            "key": "X-Frame-Options",
+                            "value": "DENY"
+                        },
+                        {
+                            "key": "X-XSS-Protection",
+                            "value": "1; mode=block"
+                        }
+                    ]
+                }
+            ]
+        }, null, 2);
+    }
+
+    generatePackageJson(cvData) {
+        const name = cvData.personalInfo.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+        return JSON.stringify({
+            "name": `${name}-landing-page`,
+            "version": "1.0.0",
+            "description": `Professional landing page for ${cvData.personalInfo.name}`,
+            "main": "index.html",
+            "scripts": {
+                "start": "python3 -m http.server 8000",
+                "serve": "npx serve .",
+                "build": "echo 'Static site - no build required'"
+            },
+            "keywords": [
+                "portfolio",
+                "cv",
+                "resume",
+                "landing-page",
+                "professional"
+            ],
+            "author": cvData.personalInfo.name,
+            "license": "MIT",
+            "homepage": ".",
+            "repository": {
+                "type": "git",
+                "url": "git+https://github.com/username/repo-name.git"
+            },
+            "devDependencies": {
+                "serve": "^14.0.0"
+            }
+        }, null, 2);
+    }
+
+    // Enhanced HTML generation with GitHub Pages meta tags
+    generateEnhancedHTML(cvData, templateContent) {
+        // Add GitHub Pages specific meta tags and optimizations
+        const enhancedTemplate = templateContent.replace(
+            '<head>',
+            `<head>
+    <!-- GitHub Pages Optimizations -->
+    <meta name="generator" content="CV Landing Generator">
+    <meta name="author" content="${cvData.personalInfo.name}">
+    <meta name="description" content="Professional landing page for ${cvData.personalInfo.name} - ${cvData.personalInfo.currentTitle || 'Professional'}">
+    <meta name="keywords" content="portfolio, cv, resume, ${cvData.personalInfo.name}, professional">
+    
+    <!-- Open Graph tags for social sharing -->
+    <meta property="og:title" content="${cvData.personalInfo.name} - Professional Landing Page">
+    <meta property="og:description" content="${cvData.personalInfo.summary || 'Professional portfolio and CV'}">
+    <meta property="og:type" content="profile">
+    <meta property="og:url" content="">
+    
+    <!-- Twitter Card tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="${cvData.personalInfo.name} - Professional Landing Page">
+    <meta name="twitter:description" content="${cvData.personalInfo.summary || 'Professional portfolio and CV'}">
+    
+    <!-- Performance and SEO -->
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    <link rel="canonical" href="">
+    
+    <!-- PWA support -->
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`
+        );
+
+        return enhancedTemplate;
+    }
+
+    // Optimize CSS for GitHub Pages
+    optimizeCSSForGitHub(cssContent) {
+        // Add GitHub Pages specific optimizations
+        const optimizedCSS = `/* GitHub Pages Optimized CSS */
+/* Generated on ${new Date().toISOString()} */
+
+${cssContent}
+
+/* GitHub Pages specific enhancements */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
+
+/* Accessibility improvements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Performance optimizations */
+img {
+    loading: lazy;
+    decoding: async;
+}
+
+/* Smooth scrolling for better UX */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Focus improvements for accessibility */
+a:focus,
+button:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+`;
+
+        return optimizedCSS;
     }
 }
 
@@ -13948,6 +15608,6 @@ PATH: C:\Coding\cv-landing-generator\database
 ========================================
 COLLECTION SUMMARY
 ========================================
-Total Files Processed: 72
-Generated: 07/18/2025 15:03:54
-Processing Time: 00:00:09.8049177
+Total Files Processed: 83
+Generated: 07/24/2025 17:22:38
+Processing Time: 00:00:17.9428984

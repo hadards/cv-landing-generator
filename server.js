@@ -39,11 +39,15 @@ if (!fs.existsSync(generatedDir)) {
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const cvRoutes = require('./routes/cv');
+const sitesRouter = require('./routes/sites');
+const githubRouter = require('./routes/github');
 
 // Mount routes
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cv', cvRoutes);
+app.use('/api/sites', sitesRouter);
+app.use('/api/github', githubRouter);
 
 // Error handling middleware
 app.use((error, req, res, next) => {

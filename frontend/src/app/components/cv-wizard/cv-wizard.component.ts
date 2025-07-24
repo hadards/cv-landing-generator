@@ -2,6 +2,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';  // ADD this import
 import { CVProcessingService, ProcessingProgress } from '../../services/cv-processing.service';
 import { LandingPageService } from '../../services/landing-page.service';
 import { PreviewModalComponent } from '../preview-modal/preview-modal.component';
@@ -47,6 +48,11 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     generationId: string | null = null;
     isDownloading = false;
     generationResult: any = null;
+
+    isDeploying = false;
+    deployedUrl: string | null = null;
+    githubConnected = false;
+    deploymentError: string | null = null;
 
     wizardSteps: WizardStep[] = [
         {
@@ -162,7 +168,8 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     constructor(
         private cvProcessingService: CVProcessingService,
-        private landingPageService: LandingPageService
+        private landingPageService: LandingPageService,
+        private http: HttpClient  // ADD HttpClient import
     ) { }
 
     ngOnInit() {
@@ -180,6 +187,12 @@ export class CVWizardComponent implements OnInit, OnDestroy {
                 }
             }
         );
+
+        // ADD: Check GitHub connection status
+        this.checkGitHubConnection();
+
+        // ADD: Handle GitHub OAuth callback
+        this.handleGitHubCallback();
     }
 
     ngOnDestroy() {
@@ -537,5 +550,157 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+        async checkGitHubConnection() {
+        try {
+            const userId = this.getCurrentUserId();
+            
+            // Call the Express router endpoint
+            const response = await this.http.get<any>(`http://localhost:3000/api/sites/list?userId=${userId}`).toPromise();
+            
+            console.log('✅ Sites API response:', response);
+            
+            this.githubConnected = response.hasGitHubConnection;
+            
+            console.log('✅ GitHub connection check:', {
+                connected: this.githubConnected,
+                userId: userId
+            });
+            
+        } catch (error: any) {
+            console.error('❌ Failed to check GitHub connection:', error);
+            console.error('Error details:', {
+                status: error.status,
+                statusText: error.statusText,
+                url: error.url,
+                message: error.message
+            });
+            this.githubConnected = false;
+        }
+    }
+
+    async deployToGitHub() {
+        try {
+            console.log('🚀 Deploy button clicked');
+            
+            // Check if GitHub is connected first
+            if (!this.githubConnected) {
+                await this.connectGitHub();
+                return;
+            }
+
+            // Get site name from user
+            const siteName = prompt('Enter a name for your website:') || 'my-portfolio';
+            
+            // Start deployment
+            this.isDeploying = true;
+            this.deployedUrl = null;
+            this.deploymentError = null;
+
+            const userId = this.getCurrentUserId();
+            const finalCvData = this.buildFinalCVDataFromEditedSections();
+
+            console.log('🚀 Starting GitHub deployment:', {
+                userId: userId,
+                siteName: siteName,
+                hasGenerationId: !!this.generationId,
+                cvDataKeys: Object.keys(finalCvData)
+            });
+
+            // Call deploy API
+            const response = await this.http.post<any>('http://localhost:3000/api/cv/deploy', {
+                userId: userId,
+                cvData: finalCvData,
+                siteName: siteName
+            }).toPromise();
+
+            console.log('✅ GitHub deployment succeeded:', {
+                githubUrl: response.githubUrl,
+                pagesUrl: response.pagesUrl,
+                repoName: response.repoName
+            });
+
+            this.deployedUrl = response.pagesUrl;
+            
+            // Show success message
+            alert(`🎉 Website deployed successfully!\n\nLive URL: ${response.pagesUrl}\nRepository: ${response.githubUrl}\n\nNote: GitHub Pages may take 2-3 minutes to become available.`);
+
+        } catch (error: any) {
+            console.error('❌ GitHub deployment failed:', error);
+            
+            const errorMessage = error.error?.error || error.message || 'Deployment failed';
+            this.deploymentError = errorMessage;
+            alert(`❌ Deployment failed: ${errorMessage}`);
+            
+        } finally {
+            this.isDeploying = false;
+        }
+    }
+
+    async connectGitHub() {
+        try {
+            const userId = this.getCurrentUserId();
+            
+            console.log('🔗 Connecting to GitHub for user:', userId);
+            
+            const response = await this.http.post<any>('http://localhost:3000/api/github/connect', { userId }).toPromise();
+            
+            console.log('✅ GitHub OAuth URL generated:', {
+                hasOAuthUrl: !!response.oauthUrl,
+                clientIdFound: response.oauthUrl?.includes('client_id='),
+                redirectUriFound: response.oauthUrl?.includes('redirect_uri=')
+            });
+
+            if (response.oauthUrl) {
+                // Store current data before redirect
+                localStorage.setItem('pendingCvData', JSON.stringify(this.buildFinalCVDataFromEditedSections()));
+                localStorage.setItem('pendingGenerationId', this.generationId || '');
+                
+                // Redirect to GitHub OAuth
+                window.location.href = response.oauthUrl;
+            }
+
+        } catch (error: any) {
+            console.error('❌ Failed to connect GitHub:', error);
+            alert('Failed to connect to GitHub. Please try again.');
+        }
+    }
+
+    private handleGitHubCallback() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const githubConnected = urlParams.get('github_connected');
+        
+        if (githubConnected === 'true') {
+            console.log('✅ GitHub OAuth callback successful');
+            
+            // Restore data
+            const savedCvData = localStorage.getItem('pendingCvData');
+            const savedGenerationId = localStorage.getItem('pendingGenerationId');
+            
+            if (savedCvData) {
+                // Restore CV data and update sections
+                const restoredData = JSON.parse(savedCvData);
+                this.cvData = restoredData;
+                this.generationId = savedGenerationId;
+                
+                // Clean up
+                localStorage.removeItem('pendingCvData');
+                localStorage.removeItem('pendingGenerationId');
+            }
+            
+            // Update connection status
+            this.githubConnected = true;
+            
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            alert('✅ GitHub connected successfully! You can now deploy your website.');
+        }
+    }
+
+    private getCurrentUserId(): string {
+        // Replace with your actual user ID method
+        return localStorage.getItem('userId') || '1';
     }
 }
