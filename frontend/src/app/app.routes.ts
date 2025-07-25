@@ -1,4 +1,3 @@
-// frontend/src/app/app.routes.ts
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
@@ -26,10 +25,6 @@ export const routes: Routes = [
   {
     path: 'test',
     loadComponent: () => import('./components/api-test/api-test.component').then(m => m.ApiTestComponent)
-  },
-  {
-    path: 'github-test',
-    loadComponent: () => import('./components/github-test/github-test').then(m => m.GithubTestComponent)
   },
   {
     path: '**',

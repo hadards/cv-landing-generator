@@ -8,8 +8,7 @@
     "build": "cd frontend && ng build",
     "test:llm": "node test-llm-clients.js",
     "test:gemini": "node test-llm-clients.js gemini",
-    "test:ollama": "node test-llm-clients.js ollama",
-    "db:init": "node scripts/init-database.js"
+    "test:ollama": "node test-llm-clients.js ollama"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -21,13 +20,9 @@
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.9.1",
     "multer": "^2.0.1",
-    "mysql2": "^3.14.2",
-    "node-fetch": "^3.3.2",
-    "pdf-parse": "^1.1.1",
-    "pg": "^8.16.3"
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
-    "@types/pg": "^8.15.4",
     "concurrently": "^8.2.0"
   }
 }

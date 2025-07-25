@@ -1,18 +1,13 @@
 import { bootstrapApplication } from '@angular/platform-browser';
-import { appConfig } from './app/app.config';
-import { AppComponent } from './app/app';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+
+import { AppComponent } from './app/app';
 import { routes } from './app/app.routes';
 
-const updatedAppConfig = {
-  ...appConfig,
+bootstrapApplication(AppComponent, {
   providers: [
-    ...appConfig.providers,
     provideRouter(routes),
-    provideHttpClient() // Add HTTP client provider
+    provideHttpClient(withInterceptorsFromDi())
   ]
-};
-
-bootstrapApplication(AppComponent, updatedAppConfig)
-  .catch((err) => console.error(err));
+}).catch(err => console.error(err));
