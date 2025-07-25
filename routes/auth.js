@@ -2,6 +2,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
+const { createOrUpdateUser, getUserById } = require('../database/services');
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -17,10 +18,17 @@ router.post('/login', async (req, res) => {
 
         // For development, accept mock credential
         if (credential === 'mock_google_jwt_token_for_testing') {
-            const user = {
-                id: 'mock_user_123',
+            // Create or get real database user for testing
+            const dbUser = await createOrUpdateUser({
                 email: 'test@example.com',
                 name: 'Test User',
+                google_id: 'test_google_123'
+            });
+
+            const user = {
+                id: dbUser.id,
+                email: dbUser.email,
+                name: dbUser.name,
                 picture: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI4MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VGVzdCBVc2VyPC90ZXh0Pgo8L3N2Zz4K',
                 verified: true
             };
@@ -51,16 +59,23 @@ router.post('/login', async (req, res) => {
                     return res.status(400).json({ error: 'Invalid Google token' });
                 }
 
-                const user = {
-                    id: payload.sub,
+                // Create or update user in database
+                const dbUser = await createOrUpdateUser({
                     email: payload.email,
                     name: payload.name,
+                    google_id: payload.sub
+                });
+
+                const user = {
+                    id: dbUser.id,
+                    email: dbUser.email,
+                    name: dbUser.name,
                     picture: payload.picture,
                     verified: payload.email_verified
                 };
 
                 const token = jwt.sign(
-                    { userId: user.id, email: user.email },
+                    { userId: dbUser.id, email: dbUser.email },
                     process.env.JWT_SECRET,
                     { expiresIn: '7d' }
                 );
@@ -115,12 +130,19 @@ router.get('/user', async (req, res) => {
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             
+            // Get user from database
+            const dbUser = await getUserById(decoded.userId);
+            
+            if (!dbUser) {
+                return res.status(401).json({ error: 'User not found' });
+            }
+
             res.status(200).json({
                 success: true,
                 user: {
-                    id: decoded.userId,
-                    email: decoded.email,
-                    name: 'Test User',
+                    id: dbUser.id,
+                    email: dbUser.email,
+                    name: dbUser.name,
                     picture: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI4MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VGVzdCBVc2VyPC90ZXh0Pgo8L3N2Zz4K'
                 }
             });

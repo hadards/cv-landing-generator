@@ -8,6 +8,13 @@ const jwt = require('jsonwebtoken');
 
 const CVParser = require('../lib/cv-parser-modular');
 const TemplateProcessor = require('../lib/template-processor');
+const { 
+    createUserSite, 
+    getUserSiteById, 
+    logProcessing, 
+    createOrUpdateUser,
+    getUserById 
+} = require('../database/services');
 
 const router = express.Router();
 
@@ -54,9 +61,9 @@ const verifyToken = (req, res, next) => {
     }
 };
 
-// Store uploaded files info (in production, use database)
-const uploadedFiles = new Map();
-const generatedLandingPages = new Map();
+// File processing storage - now using database instead of in-memory Maps
+// Keep temporary file cache for processing (files are cleaned up after processing)
+const tempFileCache = new Map();
 
 // File upload endpoint
 router.post('/upload', verifyToken, upload.single('cvFile'), async (req, res) => {
@@ -79,8 +86,11 @@ router.post('/upload', verifyToken, upload.single('cvFile'), async (req, res) =>
             status: 'uploaded'
         };
 
-        // Store file info
-        uploadedFiles.set(fileInfo.id, fileInfo);
+        // Store temporarily for processing
+        tempFileCache.set(fileInfo.id, fileInfo);
+        
+        // Log file upload to database
+        await logProcessing(req.user.userId, 'file_upload', 'success', null, null);
 
         res.status(200).json({
             success: true,
@@ -106,7 +116,7 @@ router.post('/process', verifyToken, async (req, res) => {
             return res.status(400).json({ error: 'File ID is required' });
         }
 
-        const fileInfo = uploadedFiles.get(fileId);
+        const fileInfo = tempFileCache.get(fileId);
         if (!fileInfo) {
             return res.status(404).json({ error: 'File not found' });
         }
@@ -137,7 +147,10 @@ router.post('/process', verifyToken, async (req, res) => {
         fileInfo.processedAt = new Date().toISOString();
         fileInfo.extractedText = extractedText;
         fileInfo.structuredData = structuredData;
-        uploadedFiles.set(fileId, fileInfo);
+        tempFileCache.set(fileId, fileInfo);
+        
+        // Log successful processing to database
+        await logProcessing(req.user.userId, 'cv_processing', 'success', null, null);
 
         res.status(200).json({
             success: true,
@@ -166,7 +179,7 @@ router.get('/status', async (req, res) => {
             return res.status(400).json({ error: 'File ID is required' });
         }
 
-        const fileInfo = uploadedFiles.get(fileId);
+        const fileInfo = tempFileCache.get(fileId);
         if (!fileInfo) {
             return res.status(404).json({ error: 'File not found' });
         }
@@ -202,13 +215,25 @@ router.post('/generate', verifyToken, async (req, res) => {
         console.log('Generating landing page for:', structuredData.personalInfo.name);
         console.log('User ID:', req.user.userId);
 
-        // Generate the landing page using real CV data
-        const outputDir = path.join(__dirname, '../generated', req.user.userId, Date.now().toString());
+        // Create site record in database first to get the ID
+        const siteName = `${structuredData.personalInfo.name} CV Landing Page`;
+        const repoName = `${structuredData.personalInfo.name.toLowerCase().replace(/\s+/g, '-')}-cv-site`;
+        
+        const siteRecord = await createUserSite({
+            user_id: req.user.userId,
+            site_name: siteName,
+            repo_name: repoName,
+            github_url: '', // Will be updated when published to GitHub
+            cv_data: structuredData
+        });
+
+        // Generate the landing page using the site ID as directory name
+        const outputDir = path.join(__dirname, '../generated', req.user.userId, siteRecord.id);
         const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
 
-        // Store generation info
+        // Store generation info (keeping for compatibility)
         const generationInfo = {
-            id: Date.now().toString(),
+            id: siteRecord.id,
             userId: req.user.userId,
             outputDir: outputDir,
             generatedAt: new Date().toISOString(),
@@ -216,9 +241,9 @@ router.post('/generate', verifyToken, async (req, res) => {
             cvData: structuredData,
             personName: structuredData.personalInfo.name
         };
-
-        // Store for later retrieval
-        generatedLandingPages.set(generationInfo.id, generationInfo);
+        
+        // Log successful generation
+        await logProcessing(req.user.userId, 'landing_page_generation', 'success', null, null);
 
         console.log('Landing page generated successfully for:', structuredData.personalInfo.name);
 
@@ -258,12 +283,20 @@ router.get('/preview', async (req, res) => {
 
         console.log('Loading preview for ID:', previewId);
 
-        // Get generation info from our storage
-        const generationInfo = generatedLandingPages.get(previewId);
+        // Get site info from database
+        const siteRecord = await getUserSiteById(previewId);
         
-        if (!generationInfo) {
+        if (!siteRecord) {
             return res.status(404).json({ error: 'Preview not found' });
         }
+        
+        // Build generation info for compatibility
+        const generationInfo = {
+            id: siteRecord.id,
+            userId: siteRecord.user_id,
+            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id),
+            personName: siteRecord.cv_data?.personalInfo?.name || 'User'
+        };
 
         const outputDir = generationInfo.outputDir;
         const indexPath = path.join(outputDir, 'index.html');
@@ -330,12 +363,17 @@ router.get('/static', async (req, res) => {
 
         console.log('Serving static file:', file, 'for preview:', previewId);
 
-        // Get generation info
-        const generationInfo = generatedLandingPages.get(previewId);
+        // Get site info from database
+        const siteRecord = await getUserSiteById(previewId);
         
-        if (!generationInfo) {
+        if (!siteRecord) {
             return res.status(404).json({ error: 'Preview not found' });
         }
+        
+        // Build generation info for compatibility
+        const generationInfo = {
+            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id)
+        };
 
         const filePath = path.join(generationInfo.outputDir, file);
         
@@ -407,11 +445,20 @@ router.get('/download', async (req, res) => {
 
         console.log('Download requested for generation:', generationId);
 
-        const generationInfo = generatedLandingPages.get(generationId);
+        // Get site info from database
+        const siteRecord = await getUserSiteById(generationId);
         
-        if (!generationInfo) {
+        if (!siteRecord) {
             return res.status(404).json({ error: 'Generation not found' });
         }
+        
+        // Build generation info for compatibility
+        const generationInfo = {
+            id: siteRecord.id,
+            userId: siteRecord.user_id,
+            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id),
+            personName: siteRecord.cv_data?.personalInfo?.name || 'User'
+        };
 
         const outputDir = generationInfo.outputDir;
         
