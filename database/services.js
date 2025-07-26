@@ -7,7 +7,7 @@ const { query } = require('./index');
 
 // Create or get user (for auth integration)
 const createOrUpdateUser = async (userData) => {
-    const { email, name, google_id, github_username } = userData;
+    const { email, name, google_id, github_username, github_token } = userData;
     
     try {
         // Try to find existing user by email or google_id
@@ -25,20 +25,20 @@ const createOrUpdateUser = async (userData) => {
             // Update existing user
             const updateQuery = `
                 UPDATE users 
-                SET name = $1, google_id = $2, github_username = $3, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $4
+                SET name = $1, google_id = $2, github_username = $3, github_token = $4, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $5
                 RETURNING *;
             `;
-            const result = await query(updateQuery, [name, google_id, github_username, existing.rows[0].id]);
+            const result = await query(updateQuery, [name, google_id, github_username, github_token, existing.rows[0].id]);
             return result.rows[0];
         } else {
             // Create new user
             const insertQuery = `
-                INSERT INTO users (email, name, google_id, github_username)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO users (email, name, google_id, github_username, github_token)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING *;
             `;
-            const result = await query(insertQuery, [email, name, google_id, github_username]);
+            const result = await query(insertQuery, [email, name, google_id, github_username, github_token]);
             return result.rows[0];
         }
     } catch (error) {

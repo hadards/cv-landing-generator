@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@octokit/rest": "^22.0.0",
     "@supabase/supabase-js": "^2.52.1",
     "archiver": "^7.0.1",
     "cors": "^2.8.5",

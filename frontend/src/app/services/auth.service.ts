@@ -114,4 +114,23 @@ export class AuthService {
   getToken(): string | null {
     return localStorage.getItem(this.tokenKey);
   }
+
+  refreshUserData(): Observable<any> {
+    return new Observable(observer => {
+      this.getCurrentUser().subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.userSubject.next(response.user);
+            observer.next(response);
+          } else {
+            observer.error(response);
+          }
+          observer.complete();
+        },
+        error: (error) => {
+          observer.error(error);
+        }
+      });
+    });
+  }
 }

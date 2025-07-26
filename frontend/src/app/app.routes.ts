@@ -27,6 +27,10 @@ export const routes: Routes = [
     loadComponent: () => import('./components/api-test/api-test.component').then(m => m.ApiTestComponent)
   },
   {
+    path: 'github-debug',
+    loadComponent: () => import('./components/github-debug/github-debug.component').then(m => m.GitHubDebugComponent)
+  },
+  {
     path: '**',
     redirectTo: '/home'
   }

@@ -54,6 +54,13 @@ import { AuthService, User } from '../../services/auth.service';
                class="warm-nav-link">
               Test API
             </a>
+
+            <a *ngIf="user" 
+               routerLink="/github-debug" 
+               routerLinkActive="active"
+               class="warm-nav-link">
+              🐙 GitHub Debug
+            </a>
           </div>
 
           <!-- User Actions - Warm styling -->
@@ -111,6 +118,11 @@ import { AuthService, User } from '../../services/auth.service';
                        (click)="closeUserMenu()"
                        class="warm-dropdown-item">
                       Create Landing Page
+                    </a>
+                    <a routerLink="/github-debug" 
+                       (click)="closeUserMenu()"
+                       class="warm-dropdown-item">
+                      🐙 GitHub Debug
                     </a>
                     <hr class="my-2 border-warm-peach">
                     <button (click)="logout()" 
