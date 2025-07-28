@@ -153,6 +153,34 @@ interface TestResult {
             🌐 Enable GitHub Pages
           </button>
         </div>
+
+        <div class="operation-group">
+          <h3>Test CV Site Push</h3>
+          <div class="form-group">
+            <select [(ngModel)]="selectedJobId" class="form-select">
+              <option value="">Select a generated CV...</option>
+              <option [value]="job.id" *ngFor="let job of availableJobs">{{ job.name }} ({{ job.id }})</option>
+            </select>
+            <small class="form-hint">Choose a CV that has been generated to test pushing to GitHub</small>
+          </div>
+          <div class="form-group">
+            <input 
+              type="text" 
+              [(ngModel)]="testPushRepoName" 
+              placeholder="Repository name (optional - auto-generated if empty)"
+              class="form-input">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="testPushPrivate">
+              Make test repository private
+            </label>
+          </div>
+          <button 
+            class="btn btn-primary" 
+            (click)="testPushCVSite()" 
+            [disabled]="isLoading || !connectionStatus?.connected || !selectedJobId">
+            🚀 Test Push CV Site
+          </button>
+        </div>
       </div>
 
       <!-- Test Results -->
@@ -303,6 +331,15 @@ interface TestResult {
       align-items: center;
       gap: 8px;
       font-size: 14px;
+    }
+
+    .form-hint {
+      display: block;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: #6c757d;
+      font-style: italic;
     }
 
     .repos-list {
@@ -506,6 +543,12 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
   newRepoName = '';
   makeRepoPrivate = false;
   selectedRepo = '';
+  
+  // Test CV push data
+  selectedJobId = '';
+  testPushRepoName = '';
+  testPushPrivate = false;
+  availableJobs: { id: string; name: string }[] = [];
 
   constructor(
     private http: HttpClient,
@@ -514,6 +557,9 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    // Load available CV jobs for testing
+    this.loadAvailableJobs();
+    
     // Check if we have OAuth callback parameters
     this.route.queryParams.subscribe(params => {
       if (params['connected']) {
@@ -748,6 +794,55 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
       await this.listRepositories();
     } catch (error: any) {
       this.addTestResult(false, `Failed to enable Pages for '${this.selectedRepo}'`, error.error);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  async loadAvailableJobs() {
+    try {
+      // Load available generated CV jobs from the generated directory
+      const response = await this.http.get<{ jobs: { id: string; name: string }[] }>(
+        `${this.apiUrl}/cv/jobs`,
+        { headers: this.getAuthHeaders() }
+      ).toPromise();
+
+      if (response?.jobs) {
+        this.availableJobs = response.jobs;
+      }
+    } catch (error: any) {
+      console.log('Could not load available jobs:', error);
+      // For now, add some mock data for testing
+      this.availableJobs = [
+        { id: '0875a3db-4f8b-4974-aaec-ffc910cfa50b', name: 'Hadar Dashty CV' },
+        { id: 'df768255-3abe-42aa-b1a6-d8d8d5819548', name: 'Test CV' }
+      ];
+    }
+  }
+
+  async testPushCVSite() {
+    if (!this.selectedJobId) return;
+
+    this.isLoading = true;
+    this.loadingMessage = 'Testing CV site push to GitHub...';
+
+    try {
+      const response = await this.http.post(
+        `${this.apiUrl}/github/test-push-cv`,
+        {
+          jobId: this.selectedJobId,
+          repoName: this.testPushRepoName || undefined,
+          private: this.testPushPrivate
+        },
+        { headers: this.getAuthHeaders() }
+      ).toPromise();
+
+      this.addTestResult(true, 'CV site pushed successfully to GitHub', response);
+      
+      // Refresh repositories list to show the new repo
+      await this.listRepositories();
+    } catch (error: any) {
+      this.addTestResult(false, 'Failed to push CV site to GitHub', error.error);
     } finally {
       this.isLoading = false;
     }
