@@ -44,7 +44,7 @@ router.get('/auth', (req, res) => {
     console.log('Query params:', req.query);
     console.log('Headers:', req.headers);
     
-    const { userId } = req.query; // Get user ID from query parameter instead of JWT
+    const { userId, returnUrl } = req.query; // Get user ID and return URL
     
     if (!userId) {
         console.log('No userId in query params');
@@ -52,11 +52,13 @@ router.get('/auth', (req, res) => {
     }
     
     console.log('User ID found:', userId);
+    console.log('Return URL:', returnUrl);
     
     const scope = 'repo,user:email,write:repo_hook';
-    const state = userId; // Use user ID as state parameter
+    // Encode return URL in state parameter along with user ID
+    const state = JSON.stringify({ userId, returnUrl: returnUrl || '/github-debug' });
     
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(GITHUB_REDIRECT_URI)}&scope=${scope}&state=${state}`;
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(GITHUB_REDIRECT_URI)}&scope=${scope}&state=${encodeURIComponent(state)}`;
     
     console.log('Redirecting to GitHub:', authUrl);
     res.redirect(authUrl);
@@ -104,9 +106,25 @@ router.get('/callback', async (req, res) => {
         const octokit = new Octokit({ auth: tokenData.access_token });
         const { data: githubUser } = await octokit.rest.users.getAuthenticated();
 
-        // Update user in database with GitHub token and username
+        // Parse state parameter and get user ID and return URL
+        let userId = null;
+        let returnUrl = '/github-debug';
+        
         if (state) {
-            const user = await getUserById(state);
+            try {
+                const stateData = JSON.parse(decodeURIComponent(state));
+                userId = stateData.userId;
+                returnUrl = stateData.returnUrl || '/github-debug';
+            } catch (error) {
+                console.error('Failed to parse state parameter:', error);
+                // Fallback to treating state as just userId for backward compatibility
+                userId = state;
+            }
+        }
+
+        // Update user in database with GitHub token and username
+        if (userId) {
+            const user = await getUserById(userId);
             if (user) {
                 await createOrUpdateUser({
                     email: user.email,
@@ -118,11 +136,21 @@ router.get('/callback', async (req, res) => {
             }
         }
 
-        // Redirect to frontend debug dashboard with success message
-        res.redirect('http://localhost:4200/github-debug?connected=true');
+        // Redirect to the appropriate frontend page with success message
+        res.redirect(`http://localhost:4200${returnUrl}?connected=true`);
     } catch (error) {
         console.error('GitHub OAuth error:', error);
-        res.redirect('http://localhost:4200/github-debug?error=' + encodeURIComponent(error.message));
+        // Try to get return URL from state for error redirect too
+        let errorReturnUrl = '/github-debug';
+        if (state) {
+            try {
+                const stateData = JSON.parse(decodeURIComponent(state));
+                errorReturnUrl = stateData.returnUrl || '/github-debug';
+            } catch (parseError) {
+                // Ignore parse error, use default
+            }
+        }
+        res.redirect(`http://localhost:4200${errorReturnUrl}?error=` + encodeURIComponent(error.message));
     }
 });
 

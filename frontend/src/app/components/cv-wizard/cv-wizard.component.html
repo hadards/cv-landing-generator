@@ -387,6 +387,13 @@
                 <div *ngIf="isDownloading" class="loading-spinner w-4 h-4"></div>
                 <span>{{ isDownloading ? 'Downloading...' : 'Download Files' }}</span>
               </button>
+
+              <!-- GitHub Publish Button -->
+              <app-github-publish-button 
+                [jobId]="generationId || ''"
+                (published)="onPublished($event)"
+                (error)="onPublishError($event)">
+              </app-github-publish-button>
             </div>
             
             <!-- Success Info -->

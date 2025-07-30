@@ -5,21 +5,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { GitHubPublishService, GitHubConnectionStatus, GitHubRepository, PublishResult } from '../../services/github-publish.service';
 
-interface GitHubConnectionStatus {
-  connected: boolean;
-  username?: string;
-  message: string;
-}
-
-interface GitHubRepository {
-  id: number;
-  name: string;
-  full_name: string;
-  html_url: string;
-  private: boolean;
-  has_pages?: boolean;
-}
 
 interface TestResult {
   success: boolean;
@@ -553,7 +540,8 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
   constructor(
     private http: HttpClient,
     public authService: AuthService,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private githubService: GitHubPublishService
   ) {}
 
   ngOnInit() {
@@ -651,24 +639,19 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
 
     try {
       console.log('Checking GitHub connection status...');
-      console.log('API URL:', `${this.apiUrl}/github/status`);
-      console.log('Auth headers:', this.getAuthHeaders());
       
-      const response = await this.http.get<GitHubConnectionStatus>(
-        `${this.apiUrl}/github/status`,
-        { headers: this.getAuthHeaders() }
-      ).toPromise();
-
+      const response = await this.githubService.checkGitHubConnection();
+      
       console.log('GitHub status response:', response);
-      this.connectionStatus = response!;
+      this.connectionStatus = response;
       this.addTestResult(true, 'Connection status checked successfully', response);
     } catch (error: any) {
       console.error('GitHub status check failed:', error);
       this.connectionStatus = {
         connected: false,
-        message: 'Failed to check connection: ' + (error.error?.message || error.message)
+        message: 'Failed to check connection: ' + error.message
       };
-      this.addTestResult(false, 'Failed to check GitHub connection', error.error);
+      this.addTestResult(false, 'Failed to check GitHub connection', error);
     } finally {
       this.isLoading = false;
     }
@@ -679,20 +662,11 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
     this.loadingMessage = 'Redirecting to GitHub...';
 
     try {
-      const user = this.authService.getUser();
-      console.log('Current user:', user);
-      
-      if (!user) {
-        this.addTestResult(false, 'No user found. Please login first.');
-        this.isLoading = false;
-        return;
-      }
-
-      const redirectUrl = `${this.apiUrl}/github/auth?userId=${user.id}`;
+      const redirectUrl = this.githubService.getGitHubAuthUrl();
       console.log('Redirecting to:', redirectUrl);
       this.addTestResult(true, `Redirecting to GitHub OAuth: ${redirectUrl}`);
       
-      // Redirect to GitHub OAuth with user ID as query parameter
+      // Redirect to GitHub OAuth
       window.location.href = redirectUrl;
     } catch (error: any) {
       console.error('GitHub connection error:', error);
@@ -706,15 +680,11 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
     this.loadingMessage = 'Fetching repositories...';
 
     try {
-      const response = await this.http.get<GitHubRepository[]>(
-        `${this.apiUrl}/github/repositories`,
-        { headers: this.getAuthHeaders() }
-      ).toPromise();
-
-      this.repositories = response!;
+      const response = await this.githubService.listRepositories();
+      this.repositories = response;
       this.addTestResult(true, `Found ${this.repositories.length} repositories`, response);
     } catch (error: any) {
-      this.addTestResult(false, 'Failed to fetch repositories', error.error);
+      this.addTestResult(false, 'Failed to fetch repositories', error);
     } finally {
       this.isLoading = false;
     }
@@ -727,15 +697,11 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
     this.loadingMessage = `Creating repository '${this.newRepoName}'...`;
 
     try {
-      const response = await this.http.post(
-        `${this.apiUrl}/github/create-repository`,
-        {
-          name: this.newRepoName.trim(),
-          private: this.makeRepoPrivate,
-          description: 'Repository created via CV Landing Generator'
-        },
-        { headers: this.getAuthHeaders() }
-      ).toPromise();
+      const response = await this.githubService.createRepository(
+        this.newRepoName.trim(),
+        this.makeRepoPrivate,
+        'Repository created via CV Landing Generator'
+      );
 
       this.addTestResult(true, `Repository '${this.newRepoName}' created successfully`, response);
       this.newRepoName = '';
@@ -744,7 +710,7 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
       // Refresh repositories list
       await this.listRepositories();
     } catch (error: any) {
-      this.addTestResult(false, `Failed to create repository '${this.newRepoName}'`, error.error);
+      this.addTestResult(false, `Failed to create repository '${this.newRepoName}'`, error);
     } finally {
       this.isLoading = false;
     }
@@ -757,17 +723,10 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
     this.loadingMessage = `Uploading test files to '${this.selectedRepo}'...`;
 
     try {
-      const response = await this.http.post(
-        `${this.apiUrl}/github/upload-test-files`,
-        {
-          repository: this.selectedRepo
-        },
-        { headers: this.getAuthHeaders() }
-      ).toPromise();
-
+      const response = await this.githubService.uploadTestFiles(this.selectedRepo);
       this.addTestResult(true, `Test files uploaded to '${this.selectedRepo}'`, response);
     } catch (error: any) {
-      this.addTestResult(false, `Failed to upload test files to '${this.selectedRepo}'`, error.error);
+      this.addTestResult(false, `Failed to upload test files to '${this.selectedRepo}'`, error);
     } finally {
       this.isLoading = false;
     }
@@ -780,20 +739,13 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
     this.loadingMessage = `Enabling GitHub Pages for '${this.selectedRepo}'...`;
 
     try {
-      const response = await this.http.post(
-        `${this.apiUrl}/github/enable-pages`,
-        {
-          repository: this.selectedRepo
-        },
-        { headers: this.getAuthHeaders() }
-      ).toPromise();
-
+      const response = await this.githubService.enableGitHubPages(this.selectedRepo);
       this.addTestResult(true, `GitHub Pages enabled for '${this.selectedRepo}'`, response);
       
       // Refresh repositories to see Pages status
       await this.listRepositories();
     } catch (error: any) {
-      this.addTestResult(false, `Failed to enable Pages for '${this.selectedRepo}'`, error.error);
+      this.addTestResult(false, `Failed to enable Pages for '${this.selectedRepo}'`, error);
     } finally {
       this.isLoading = false;
     }
@@ -827,22 +779,21 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
     this.loadingMessage = 'Testing CV site push to GitHub...';
 
     try {
-      const response = await this.http.post(
-        `${this.apiUrl}/github/test-push-cv`,
-        {
-          jobId: this.selectedJobId,
-          repoName: this.testPushRepoName || undefined,
-          private: this.testPushPrivate
-        },
-        { headers: this.getAuthHeaders() }
-      ).toPromise();
+      const response = await this.githubService.publishCVSite(
+        this.selectedJobId,
+        this.testPushRepoName || undefined,
+        this.testPushPrivate
+      );
 
-      this.addTestResult(true, 'CV site pushed successfully to GitHub', response);
-      
-      // Refresh repositories list to show the new repo
-      await this.listRepositories();
+      if (response.success) {
+        this.addTestResult(true, 'CV site pushed successfully to GitHub', response);
+        // Refresh repositories list to show the new repo
+        await this.listRepositories();
+      } else {
+        this.addTestResult(false, 'Failed to push CV site to GitHub', response);
+      }
     } catch (error: any) {
-      this.addTestResult(false, 'Failed to push CV site to GitHub', error.error);
+      this.addTestResult(false, 'Failed to push CV site to GitHub', error);
     } finally {
       this.isLoading = false;
     }

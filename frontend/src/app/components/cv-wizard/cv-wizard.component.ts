@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { CVProcessingService, ProcessingProgress } from '../../services/cv-processing.service';
 import { LandingPageService } from '../../services/landing-page.service';
 import { PreviewModalComponent } from '../preview-modal/preview-modal.component';
+import { GitHubPublishButtonComponent, PublishSuccess } from '../github-publish-button/github-publish-button.component';
 import { Subscription } from 'rxjs';
 
 interface WizardStep {
@@ -28,7 +29,7 @@ interface CVSection {
 @Component({
     selector: 'app-cv-wizard',
     standalone: true,
-    imports: [CommonModule, FormsModule, PreviewModalComponent],
+    imports: [CommonModule, FormsModule, PreviewModalComponent, GitHubPublishButtonComponent],
     templateUrl: 'cv-wizard.component.html',
     styleUrls: ['cv-wizard.component.scss']
 })
@@ -537,5 +538,18 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // GitHub publish event handlers
+    onPublished(result: PublishSuccess) {
+        console.log('CV published successfully:', result);
+        // Could show a success toast or update UI
+        alert(`🎉 CV published successfully!\n\nLive Site: ${result.siteUrl}\nRepository: ${result.repoUrl}`);
+    }
+
+    onPublishError(error: string) {
+        console.error('CV publish failed:', error);
+        // Could show an error toast or update UI
+        alert(`❌ Publishing failed: ${error}`);
     }
 }
