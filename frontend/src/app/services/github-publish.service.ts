@@ -173,6 +173,24 @@ export class GitHubPublishService {
     return `${this.apiUrl}/github/auth?userId=${user.id}&returnUrl=${encodeURIComponent(finalReturnUrl)}`;
   }
 
+  async checkSiteStatus(siteUrl: string): Promise<{live: boolean, status: number | null, message: string}> {
+    try {
+      const response = await this.http.post<{live: boolean, status: number | null, message: string}>(
+        `${this.apiUrl}/github/check-site-status`,
+        { siteUrl },
+        { headers: this.getAuthHeaders() }
+      ).toPromise();
+
+      return response!;
+    } catch (error: any) {
+      return {
+        live: false,
+        status: null,
+        message: 'Failed to check site status: ' + (error.error?.message || error.message)
+      };
+    }
+  }
+
   isGitHubConnected(): boolean {
     const user = this.authService.getUser();
     return !!(user && (user as any).github_username);

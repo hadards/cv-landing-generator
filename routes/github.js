@@ -640,4 +640,53 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
     }
 });
 
+// Check if GitHub Pages site is live
+router.post('/check-site-status', authenticateUser, async (req, res) => {
+    try {
+        const { siteUrl } = req.body;
+        
+        if (!siteUrl) {
+            return res.status(400).json({ error: 'Site URL is required' });
+        }
+
+        console.log('Checking site status for:', siteUrl);
+
+        // Try to fetch the site with a timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const response = await fetch(siteUrl, {
+            method: 'HEAD',
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'GitHub-Pages-Status-Checker'
+            }
+        });
+
+        clearTimeout(timeout);
+
+        if (response.ok) {
+            res.json({
+                live: true,
+                status: response.status,
+                message: 'Site is live and accessible'
+            });
+        } else {
+            res.json({
+                live: false,
+                status: response.status,
+                message: `Site returned status ${response.status}`
+            });
+        }
+
+    } catch (error) {
+        console.log('Site not yet accessible:', error.message);
+        res.json({
+            live: false,
+            status: null,
+            message: error.message || 'Site not accessible'
+        });
+    }
+});
+
 module.exports = router;

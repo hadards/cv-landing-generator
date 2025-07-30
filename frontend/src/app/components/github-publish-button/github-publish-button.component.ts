@@ -11,7 +11,7 @@ export interface PublishSuccess {
   message: string;
 }
 
-type PublishState = 'idle' | 'auth-needed' | 'publishing' | 'success' | 'error';
+type PublishState = 'idle' | 'auth-needed' | 'publishing' | 'deploying' | 'success' | 'error';
 
 @Component({
   selector: 'app-github-publish-button',
@@ -65,6 +65,34 @@ type PublishState = 'idle' | 'auth-needed' | 'publishing' | 'success' | 'error';
             <div class="step-spinner"></div>
             <span>Generating live site URL</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Deploying State -->
+      <div *ngIf="state === 'deploying'" class="deploying-container">
+        <button 
+          disabled
+          class="btn-success flex items-center justify-center space-x-2 opacity-80">
+          <div class="loading-spinner w-4 h-4"></div>
+          <span>Deploying Website...</span>
+        </button>
+        <div class="deploying-info">
+          <div class="step-item">
+            <div class="step-spinner"></div>
+            <span>GitHub Pages is building your site</span>
+          </div>
+          <div class="step-item">
+            <div class="step-spinner"></div>
+            <span>Waiting for deployment to complete</span>
+          </div>
+          <div class="step-item">
+            <div class="step-spinner"></div>
+            <span>Verifying site is live and accessible</span>
+          </div>
+        </div>
+        <div class="deploying-message">
+          <p class="text-sm text-blue-600">⏱️ GitHub Pages deployment typically takes 1-3 minutes</p>
+          <p class="text-xs text-gray-500">We're automatically checking when your site is ready</p>
         </div>
       </div>
 
@@ -212,6 +240,32 @@ type PublishState = 'idle' | 'auth-needed' | 'publishing' | 'success' | 'error';
       border: 1px solid #bbf7d0;
       border-radius: 6px;
       min-width: 250px;
+    }
+
+    .deploying-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .deploying-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      min-width: 250px;
+    }
+
+    .deploying-message {
+      text-align: center;
+      padding: 0.5rem;
+      background: #f8fafc;
+      border-radius: 4px;
+      margin-top: 0.5rem;
     }
 
     .step-item {
@@ -526,8 +580,15 @@ export class GitHubPublishButtonComponent implements OnInit {
           message: result.message
         };
         
-        this.state = 'success';
-        this.published.emit(this.publishedResult);
+        // Start polling the GitHub Pages URL to check when it's live
+        if (this.publishedResult.siteUrl) {
+          console.log('Starting to poll GitHub Pages URL:', this.publishedResult.siteUrl);
+          this.state = 'deploying';
+          this.pollSiteUrl(this.publishedResult.siteUrl);
+        } else {
+          this.state = 'success';
+          this.published.emit(this.publishedResult);
+        }
       } else {
         this.state = 'error';
         this.errorMessage = result.message || 'Automatic publishing failed';
@@ -561,6 +622,56 @@ export class GitHubPublishButtonComponent implements OnInit {
       this.errorMessage = err.message || 'Failed to connect to GitHub';
       this.error.emit(this.errorMessage);
     }
+  }
+
+  private async pollSiteUrl(siteUrl: string) {
+    const maxAttempts = 30; // Poll for up to 5 minutes (30 attempts * 10 seconds)
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts++;
+      console.log(`Polling attempt ${attempts}/${maxAttempts} for ${siteUrl}`);
+
+      try {
+        const status = await this.githubService.checkSiteStatus(siteUrl);
+        console.log('Site status check result:', status);
+        
+        if (status.live) {
+          console.log('🎉 GitHub Pages site is live and accessible!');
+          this.state = 'success';
+          this.published.emit(this.publishedResult!);
+          return;
+        }
+        
+        console.log(`Site not yet live (attempt ${attempts}/${maxAttempts}): ${status.message}`);
+        
+        if (attempts < maxAttempts) {
+          // Wait 10 seconds before next attempt
+          setTimeout(poll, 10000);
+        } else {
+          console.log('Max polling attempts reached - assuming site is ready');
+          // Even if we can't verify, assume it's ready after max attempts
+          this.state = 'success';
+          this.published.emit(this.publishedResult!);
+        }
+        
+      } catch (error: any) {
+        console.log(`Error checking site status (attempt ${attempts}/${maxAttempts}):`, error.message);
+        
+        if (attempts < maxAttempts) {
+          // Wait 10 seconds before next attempt
+          setTimeout(poll, 10000);
+        } else {
+          console.log('Max polling attempts reached - assuming site is ready');
+          // Even if we can't verify, assume it's ready after max attempts
+          this.state = 'success';
+          this.published.emit(this.publishedResult!);
+        }
+      }
+    };
+
+    // Start polling immediately
+    poll();
   }
 
   reset() {
