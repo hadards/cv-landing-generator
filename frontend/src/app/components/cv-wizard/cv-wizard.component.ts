@@ -183,6 +183,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         );
     }
 
+
     ngOnDestroy() {
         this.progressSubscription?.unsubscribe();
     }
@@ -543,13 +544,11 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     // GitHub publish event handlers
     onPublished(result: PublishSuccess) {
         console.log('CV published successfully:', result);
-        // Could show a success toast or update UI
-        alert(`🎉 CV published successfully!\n\nLive Site: ${result.siteUrl}\nRepository: ${result.repoUrl}`);
+        // The success message is now handled by the publish button component itself
     }
 
     onPublishError(error: string) {
         console.error('CV publish failed:', error);
-        // Could show an error toast or update UI
-        alert(`❌ Publishing failed: ${error}`);
+        // The error message is now handled by the publish button component itself
     }
 }
