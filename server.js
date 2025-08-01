@@ -9,6 +9,7 @@ require('dotenv').config();
 // Import monitoring systems
 const { requestMonitoring, errorMonitoring } = require('./middleware/monitoring');
 const metricsCollector = require('./lib/metrics-collector');
+const fileCleanupManager = require('./lib/file-cleanup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -160,7 +161,7 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
     console.log(`=================================`);
     console.log(`CV Landing Generator API Server`);
     console.log(`=================================`);
@@ -176,6 +177,76 @@ app.listen(PORT, () => {
     console.log(`CORS Origins: ${allowedOrigins.join(', ')}`);
     console.log(`Rate Limiting: ${limiter.max} requests per ${limiter.windowMs/1000/60} minutes`);
     console.log(`=================================`);
+    
+    // Start file cleanup manager
+    try {
+        await fileCleanupManager.start();
+        console.log('File cleanup manager started');
+    } catch (error) {
+        console.error('Failed to start file cleanup manager:', error);
+    }
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    
+    // Stop file cleanup manager
+    try {
+        await fileCleanupManager.stop();
+        console.log('File cleanup manager stopped');
+    } catch (error) {
+        console.error('Error stopping file cleanup manager:', error);
+    }
+    
+    server.close(() => {
+        console.log('Process terminated');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully');
+    
+    // Stop file cleanup manager
+    try {
+        await fileCleanupManager.stop();
+        console.log('File cleanup manager stopped');
+    } catch (error) {
+        console.error('Error stopping file cleanup manager:', error);
+    }
+    
+    server.close(() => {
+        console.log('Process terminated');
+        process.exit(0);
+    });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', async (err) => {
+    console.error('Uncaught Exception:', err);
+    
+    try {
+        await fileCleanupManager.stop();
+    } catch (error) {
+        // Ignore cleanup errors during crash
+    }
+    
+    process.exit(1);
+});
+
+process.on('unhandledRejection', async (err) => {
+    console.error('Unhandled Rejection:', err);
+    
+    try {
+        await fileCleanupManager.stop();
+    } catch (error) {
+        // Ignore cleanup errors during crash
+    }
+    
+    server.close(() => {
+        process.exit(1);
+    });
 });
 
 module.exports = app;

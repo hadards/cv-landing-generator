@@ -3,6 +3,7 @@ const express = require('express');
 const healthMonitor = require('../lib/health-monitor');
 const metricsCollector = require('../lib/metrics-collector');
 const { checkHealthThresholds } = require('../middleware/monitoring');
+const fileCleanupManager = require('../lib/file-cleanup');
 const router = express.Router();
 
 // Basic health check endpoint
@@ -113,6 +114,66 @@ router.all('/test', async (req, res) => {
             status: 'error',
             message: 'Internal server error',
             error: error.message
+        });
+    }
+});
+
+// File cleanup status endpoint
+router.get('/cleanup/status', async (req, res) => {
+    try {
+        const stats = await fileCleanupManager.getCleanupStats();
+        
+        res.status(200).json({
+            status: 'success',
+            cleanup_stats: stats,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Cleanup status endpoint error:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to retrieve cleanup status',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Manual cleanup trigger endpoint
+router.post('/cleanup/run', async (req, res) => {
+    try {
+        const { type } = req.body;
+        let result;
+        
+        switch (type) {
+            case 'uploads':
+                result = await fileCleanupManager.cleanupUploads();
+                break;
+            case 'generated':
+                result = await fileCleanupManager.cleanupGenerated();
+                break;
+            case 'orphaned':
+                result = await fileCleanupManager.cleanupOrphanedFiles();
+                break;
+            case 'full':
+            default:
+                result = await fileCleanupManager.runFullCleanup();
+                break;
+        }
+        
+        res.status(200).json({
+            status: 'success',
+            cleanup_type: type || 'full',
+            result,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Manual cleanup endpoint error:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Manual cleanup failed',
+            error: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });
