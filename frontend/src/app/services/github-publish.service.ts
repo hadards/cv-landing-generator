@@ -163,15 +163,33 @@ export class GitHubPublishService {
   }
 
   getGitHubAuthUrl(returnUrl?: string): string {
+    console.log('=== GITHUB AUTH URL GENERATION ===');
+    console.log('getGitHubAuthUrl called with returnUrl:', returnUrl);
+    
     const user = this.authService.getUser();
+    console.log('User from auth service:', user);
+    
     if (!user) {
+      console.error('No user found in auth service');
       throw new Error('User not logged in');
+    }
+    
+    if (!user.id) {
+      console.error('User has no ID:', user);
+      throw new Error('User ID is missing');
     }
     
     // Default return URL to current path if not specified
     const finalReturnUrl = returnUrl || window.location.pathname;
+    console.log('Final return URL:', finalReturnUrl);
+    console.log('API URL:', this.apiUrl);
+    console.log('User ID:', user.id);
     
-    return `${this.apiUrl}/github/auth?userId=${user.id}&returnUrl=${encodeURIComponent(finalReturnUrl)}`;
+    const authUrl = `${this.apiUrl}/github/auth?userId=${user.id}&returnUrl=${encodeURIComponent(finalReturnUrl)}`;
+    console.log('Generated auth URL:', authUrl);
+    console.log('=== GITHUB AUTH URL GENERATION END ===');
+    
+    return authUrl;
   }
 
   async checkSiteStatus(siteUrl: string): Promise<{live: boolean, status: number | null, message: string}> {

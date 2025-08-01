@@ -40,22 +40,49 @@ const authenticateUser = async (req, res, next) => {
 
 // GitHub OAuth initiation - modified to work with frontend redirect  
 router.get('/auth', (req, res) => {
+    console.log('=== GITHUB AUTH BACKEND START ===');
+    console.log('GitHub auth route hit');
+    console.log('Full URL:', req.url);
+    console.log('Query params:', req.query);
+    console.log('Method:', req.method);
+    console.log('Headers (selective):', {
+        'user-agent': req.headers['user-agent'],
+        'referer': req.headers['referer'],
+        'host': req.headers['host']
+    });
+    
     // Remove CSP headers for OAuth redirect
     res.removeHeader('Content-Security-Policy');
     res.removeHeader('Content-Security-Policy-Report-Only');
-    console.log('GitHub auth route hit');
-    console.log('Query params:', req.query);
-    console.log('Headers:', req.headers);
+    
+    // Disable additional validation for OAuth flow
+    res.removeHeader('X-Frame-Options');
     
     const { userId, returnUrl } = req.query; // Get user ID and return URL
     
     if (!userId) {
-        console.log('No userId in query params');
+        console.log('ERROR: No userId in query params');
+        console.log('Available query keys:', Object.keys(req.query));
         return res.status(400).json({ error: 'User ID is required in query parameter' });
     }
     
     console.log('User ID found:', userId);
     console.log('Return URL:', returnUrl);
+    
+    // Validate environment variables
+    if (!GITHUB_CLIENT_ID) {
+        console.log('ERROR: GITHUB_CLIENT_ID not configured');
+        return res.status(500).json({ error: 'GitHub OAuth not configured' });
+    }
+    
+    if (!GITHUB_REDIRECT_URI) {
+        console.log('ERROR: GITHUB_REDIRECT_URI not configured');
+        return res.status(500).json({ error: 'GitHub OAuth redirect not configured' });
+    }
+    
+    console.log('GitHub OAuth Config:');
+    console.log('- Client ID:', GITHUB_CLIENT_ID ? 'SET' : 'NOT SET');
+    console.log('- Redirect URI:', GITHUB_REDIRECT_URI);
     
     const scope = 'repo,user:email,write:repo_hook';
     // Encode return URL in state parameter along with user ID
@@ -63,7 +90,10 @@ router.get('/auth', (req, res) => {
     
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(GITHUB_REDIRECT_URI)}&scope=${scope}&state=${encodeURIComponent(state)}`;
     
-    console.log('Redirecting to GitHub:', authUrl);
+    console.log('Generated GitHub OAuth URL:', authUrl);
+    console.log('About to redirect...');
+    console.log('=== GITHUB AUTH BACKEND END ===');
+    
     res.redirect(authUrl);
 });
 

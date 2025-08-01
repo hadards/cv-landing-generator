@@ -314,8 +314,31 @@ export class GitHubPublishButtonComponent implements OnInit {
   }
 
   connectGitHub() {
+    console.log('=== GITHUB CONNECT DEBUG START ===');
     console.log('connectGitHub called - storing job ID and redirecting to GitHub OAuth');
     console.log('Current job ID:', this.jobId);
+    console.log('Current user:', this.authService.getUser());
+    console.log('Is logged in:', this.authService.isLoggedIn());
+    console.log('Current URL:', window.location.href);
+    console.log('Current pathname:', window.location.pathname);
+    
+    // Check if user is logged in first
+    if (!this.authService.isLoggedIn()) {
+      console.error('User is not logged in!');
+      this.state = 'error';
+      this.errorMessage = 'Please log in first before connecting to GitHub';
+      this.error.emit(this.errorMessage);
+      return;
+    }
+    
+    const user = this.authService.getUser();
+    if (!user || !user.id) {
+      console.error('User object is invalid:', user);
+      this.state = 'error';
+      this.errorMessage = 'Invalid user session. Please log in again.';
+      this.error.emit(this.errorMessage);
+      return;
+    }
     
     try {
       // Store the intention to publish after auth
@@ -325,11 +348,34 @@ export class GitHubPublishButtonComponent implements OnInit {
       }
       
       // Pass current path as return URL so user comes back here after auth
+      console.log('About to get GitHub auth URL...');
+      console.log('User ID for auth URL:', user.id);
+      
       const authUrl = this.githubService.getGitHubAuthUrl(window.location.pathname);
-      console.log('Redirecting to GitHub OAuth:', authUrl);
+      console.log('GitHub auth URL generated:', authUrl);
+      
+      // Validate the URL before redirecting
+      if (!authUrl || !authUrl.startsWith('http')) {
+        throw new Error('Invalid auth URL generated: ' + authUrl);
+      }
+      
+      console.log('About to redirect to GitHub OAuth...');
+      console.log('Using window.location.href assignment');
+      
+      // Force immediate redirect
       window.location.href = authUrl;
+      
+      console.log('Redirect command executed');
+      console.log('=== GITHUB CONNECT DEBUG END ===');
+      
     } catch (err: any) {
-      console.error('Failed to connect to GitHub:', err);
+      console.error('=== GITHUB CONNECT ERROR ===');
+      console.error('Failed to connect to GitHub - Error details:', err);
+      console.error('Error type:', typeof err);
+      console.error('Error message:', err.message);
+      console.error('Error stack:', err.stack);
+      console.error('=== GITHUB CONNECT ERROR END ===');
+      
       this.state = 'error';
       this.errorMessage = err.message || 'Failed to connect to GitHub';
       this.error.emit(this.errorMessage);

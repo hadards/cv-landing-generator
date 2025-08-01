@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 const jwt = require('jsonwebtoken');
+const { body, param, query, validationResult } = require('express-validator');
 
 const CVParser = require('../lib/cv-parser-modular');
 const TemplateProcessor = require('../lib/template-processor');
@@ -29,11 +30,19 @@ const upload = multer({
         fileSize: 10 * 1024 * 1024, // 10MB limit
     },
     fileFilter: (req, file, cb) => {
+        // Basic MIME type validation
         const allowedTypes = [
             'application/pdf',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ];
+        
+        // Sanitize filename - remove dangerous characters
+        const sanitizedFilename = file.originalname
+            .replace(/[^a-zA-Z0-9.-]/g, '_')
+            .substring(0, 100); // Limit filename length
+        
+        file.originalname = sanitizedFilename;
         
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
@@ -42,6 +51,90 @@ const upload = multer({
         }
     }
 });
+
+// File content validation middleware
+const validateFileContent = async (req, res, next) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    try {
+        const file = req.file;
+        const filePath = file.path;
+        
+        // Read first few bytes to check file signature
+        const buffer = await fs.promises.readFile(filePath);
+        const fileSignature = buffer.toString('hex', 0, 8).toLowerCase();
+        
+        // File signature validation
+        const validSignatures = {
+            'pdf': ['25504446'], // %PDF
+            'doc': ['d0cf11e0'], // Microsoft Office
+            'docx': ['504b0304'], // ZIP signature (DOCX is a ZIP file)
+        };
+        
+        let isValidFile = false;
+        for (const [type, signatures] of Object.entries(validSignatures)) {
+            if (signatures.some(sig => fileSignature.startsWith(sig))) {
+                isValidFile = true;
+                break;
+            }
+        }
+        
+        if (!isValidFile) {
+            // Clean up invalid file
+            await fs.promises.unlink(filePath).catch(() => {});
+            return res.status(400).json({ 
+                error: 'Invalid file content. File signature does not match expected format.' 
+            });
+        }
+        
+        // Additional size check (double-checking multer limits)
+        if (buffer.length > 10 * 1024 * 1024) {
+            await fs.promises.unlink(filePath).catch(() => {});
+            return res.status(400).json({ 
+                error: 'File too large. Maximum size is 10MB.' 
+            });
+        }
+        
+        // Check for potential malicious content patterns
+        const fileContent = buffer.toString('utf8', 0, Math.min(1024, buffer.length));
+        const maliciousPatterns = [
+            /<script/i,
+            /javascript:/i,
+            /vbscript:/i,
+            /onload=/i,
+            /onerror=/i
+        ];
+        
+        if (maliciousPatterns.some(pattern => pattern.test(fileContent))) {
+            await fs.promises.unlink(filePath).catch(() => {});
+            return res.status(400).json({ 
+                error: 'File contains potentially malicious content.' 
+            });
+        }
+        
+        next();
+    } catch (error) {
+        console.error('File validation error:', error);
+        if (req.file && req.file.path) {
+            await fs.promises.unlink(req.file.path).catch(() => {});
+        }
+        res.status(500).json({ error: 'File validation failed' });
+    }
+};
+
+// Input validation middleware
+const handleValidationErrors = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({
+            error: 'Validation failed',
+            details: errors.array()
+        });
+    }
+    next();
+};
 
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
@@ -66,7 +159,7 @@ const verifyToken = (req, res, next) => {
 const tempFileCache = new Map();
 
 // File upload endpoint
-router.post('/upload', verifyToken, upload.single('cvFile'), async (req, res) => {
+router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent, async (req, res) => {
     try {
         const uploadedFile = req.file;
         
@@ -108,7 +201,17 @@ router.post('/upload', verifyToken, upload.single('cvFile'), async (req, res) =>
 });
 
 // Process CV file endpoint
-router.post('/process', verifyToken, async (req, res) => {
+router.post('/process', 
+    verifyToken,
+    [
+        body('fileId').isString().trim().isLength({ min: 1, max: 100 })
+            .withMessage('Valid file ID is required'),
+        body('profilePicture').optional().isString()
+            .isLength({ max: 5000000 }) // ~5MB base64 limit
+            .withMessage('Profile picture too large')
+    ],
+    handleValidationErrors,
+    async (req, res) => {
     try {
         const { fileId } = req.body;
         
@@ -199,7 +302,18 @@ router.get('/status', async (req, res) => {
 });
 
 // Generate landing page endpoint
-router.post('/generate', verifyToken, async (req, res) => {
+router.post('/generate', 
+    verifyToken,
+    [
+        body('structuredData').isObject().withMessage('Structured CV data is required'),
+        body('structuredData.personalInfo').isObject().withMessage('Personal information is required'),
+        body('structuredData.personalInfo.name').isString().trim().isLength({ min: 1, max: 100 })
+            .withMessage('Valid name is required'),
+        body('structuredData.personalInfo.email').isEmail().normalizeEmail()
+            .withMessage('Valid email is required')
+    ],
+    handleValidationErrors,
+    async (req, res) => {
     try {
         const { structuredData } = req.body;
         
@@ -264,7 +378,12 @@ router.post('/generate', verifyToken, async (req, res) => {
 });
 
 // Preview landing page endpoint
-router.get('/preview', async (req, res) => {
+router.get('/preview', 
+    [
+        query('previewId').isUUID().withMessage('Valid preview ID is required')
+    ],
+    handleValidationErrors,
+    async (req, res) => {
     // Remove security headers to allow iframe embedding
     res.removeHeader('Content-Security-Policy');
     res.removeHeader('Content-Security-Policy-Report-Only');
@@ -349,7 +468,14 @@ router.get('/preview', async (req, res) => {
 });
 
 // Static file handler for CSS, JS, and other assets
-router.get('/static', async (req, res) => {
+router.get('/static', 
+    [
+        query('previewId').isUUID().withMessage('Valid preview ID is required'),
+        query('file').isString().trim().isLength({ min: 1, max: 50 })
+            .matches(/^[a-zA-Z0-9.-]+$/).withMessage('Invalid file name')
+    ],
+    handleValidationErrors,
+    async (req, res) => {
     // Remove security headers to allow iframe embedding of static assets
     res.removeHeader('Content-Security-Policy');
     res.removeHeader('Content-Security-Policy-Report-Only');
@@ -436,7 +562,12 @@ router.get('/static', async (req, res) => {
 });
 
 // Download handler - creates and serves a ZIP file
-router.get('/download', async (req, res) => {
+router.get('/download', 
+    [
+        query('generationId').isUUID().withMessage('Valid generation ID is required')
+    ],
+    handleValidationErrors,
+    async (req, res) => {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
