@@ -5,6 +5,7 @@ const { createOrUpdateUser, getUserById } = require('../database/services');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs').promises;
+const { recordGitHubConnection, recordGitHubPublish } = require('../middleware/monitoring');
 
 const router = express.Router();
 
@@ -114,6 +115,7 @@ router.get('/callback', async (req, res) => {
     }
     
     console.log('Processing OAuth callback with code:', code, 'state:', state);
+    const startTime = Date.now();
 
     try {
         // Exchange code for access token
@@ -169,6 +171,9 @@ router.get('/callback', async (req, res) => {
                     github_username: githubUser.login,
                     github_token: tokenData.access_token
                 });
+                
+                // Record GitHub connection
+                recordGitHubConnection(userId, Date.now() - startTime);
             }
         }
 
@@ -521,6 +526,7 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
 
         // Construct path to generated site files
         const siteDirectory = path.join(__dirname, '..', 'generated', req.user.id, jobId);
+        const publishStartTime = Date.now();
         
         // Check if site directory exists
         try {
@@ -651,6 +657,11 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
 
         const successfulUploads = uploadResults.filter(r => r.success).length;
         const failedUploads = uploadResults.filter(r => !r.success).length;
+        const publishTime = Date.now() - publishStartTime;
+        const success = successfulUploads > 0;
+        
+        // Record GitHub publish metrics
+        recordGitHubPublish(req.user.id, publishTime, success);
 
         res.json({
             success: true,

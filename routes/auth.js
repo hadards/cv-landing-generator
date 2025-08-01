@@ -3,6 +3,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { createOrUpdateUser, getUserById } = require('../database/services');
+const { recordUserLogin, recordUserRegistration } = require('../middleware/monitoring');
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -39,6 +40,9 @@ router.post('/login', async (req, res) => {
                 { expiresIn: '7d' }
             );
 
+            // Record user login
+            recordUserLogin(user.id);
+            
             return res.status(200).json({
                 success: true,
                 user: user,
@@ -81,6 +85,9 @@ router.post('/login', async (req, res) => {
                 { expiresIn: '7d' }
             );
 
+            // Record user login
+            recordUserLogin(user.id);
+            
             res.status(200).json({
                 success: true,
                 user: user,

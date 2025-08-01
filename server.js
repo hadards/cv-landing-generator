@@ -6,6 +6,10 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
+// Import monitoring systems
+const { requestMonitoring, errorMonitoring } = require('./middleware/monitoring');
+const metricsCollector = require('./lib/metrics-collector');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -95,6 +99,9 @@ app.use(cors({
     credentials: true
 }));
 
+// Request monitoring middleware (before routes)
+app.use(requestMonitoring);
+
 // Body parsing middleware
 const maxFileSize = process.env.MAX_FILE_SIZE || '50mb';
 app.use(express.json({ limit: maxFileSize }));
@@ -123,6 +130,9 @@ app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cv', cvRoutes);
 app.use('/api/github', githubRoutes);
+
+// Error monitoring middleware
+app.use(errorMonitoring);
 
 // Error handling middleware
 app.use((error, req, res, next) => {

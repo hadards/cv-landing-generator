@@ -16,6 +16,11 @@ const {
     createOrUpdateUser,
     getUserById 
 } = require('../database/services');
+const { 
+    monitorFileUpload, 
+    recordCVProcessing, 
+    recordLandingPageGeneration 
+} = require('../middleware/monitoring');
 
 const router = express.Router();
 
@@ -159,7 +164,7 @@ const verifyToken = (req, res, next) => {
 const tempFileCache = new Map();
 
 // File upload endpoint
-router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent, async (req, res) => {
+router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
     try {
         const uploadedFile = req.file;
         
@@ -225,6 +230,7 @@ router.post('/process',
         }
 
         console.log('Processing CV file:', fileInfo.originalName);
+        const processingStartTime = Date.now();
 
         // Extract text from the uploaded file
         console.log('Extracting text from file...');
@@ -239,6 +245,9 @@ router.post('/process',
         console.log('Processing with Modular CV Parser...');
         const structuredData = await cvParser.processCV(extractedText);
         console.log('Structured data generated for:', structuredData.personalInfo?.name);
+        
+        const processingTime = Date.now() - processingStartTime;
+        recordCVProcessing(req.user.userId, processingTime);
 
         // Validate the structured data
         if (!structuredData.personalInfo?.name) {
@@ -328,6 +337,7 @@ router.post('/generate',
 
         console.log('Generating landing page for:', structuredData.personalInfo.name);
         console.log('User ID:', req.user.userId);
+        const generationStartTime = Date.now();
 
         // Create site record in database first to get the ID
         const siteName = `${structuredData.personalInfo.name} CV Landing Page`;
@@ -344,6 +354,9 @@ router.post('/generate',
         // Generate the landing page using the site ID as directory name
         const outputDir = path.join(__dirname, '../generated', req.user.userId, siteRecord.id);
         const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
+        
+        const generationTime = Date.now() - generationStartTime;
+        recordLandingPageGeneration(req.user.userId, generationTime);
 
         // Store generation info (keeping for compatibility)
         const generationInfo = {

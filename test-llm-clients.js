@@ -289,9 +289,9 @@ function displayTestSummary(results) {
     console.log(`\nOverall: ${passedCount}/${sections.length} processors succeeded`);
     
     if (passedCount === sections.length) {
-        console.log('🎉 All processors working correctly with Mistral!');
+        console.log('All processors working correctly with Mistral!');
     } else {
-        console.log('⚠️  Some processors failed - check the errors above');
+        console.log('Some processors failed - check the errors above');
     }
 }
 

@@ -395,7 +395,7 @@ export class GitHubPublishButtonComponent implements OnInit {
         console.log('Site status check result:', status);
         
         if (status.live) {
-          console.log('🎉 GitHub Pages site is live and accessible!');
+          console.log('GitHub Pages site is live and accessible!');
           this.state = 'success';
           this.published.emit(this.publishedResult!);
           return;
