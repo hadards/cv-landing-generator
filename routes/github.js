@@ -38,8 +38,11 @@ const authenticateUser = async (req, res, next) => {
     }
 };
 
-// GitHub OAuth initiation - modified to work with frontend redirect
+// GitHub OAuth initiation - modified to work with frontend redirect  
 router.get('/auth', (req, res) => {
+    // Remove CSP headers for OAuth redirect
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
     console.log('GitHub auth route hit');
     console.log('Query params:', req.query);
     console.log('Headers:', req.headers);
@@ -66,6 +69,9 @@ router.get('/auth', (req, res) => {
 
 // GitHub OAuth callback
 router.get('/callback', async (req, res) => {
+    // Remove CSP headers for OAuth callback
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
     console.log('GitHub callback route hit');
     console.log('Query params:', req.query);
     console.log('Headers:', req.headers);

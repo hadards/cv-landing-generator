@@ -16,8 +16,8 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Google credential is required' });
         }
 
-        // For development, accept mock credential
-        if (credential === 'mock_google_jwt_token_for_testing') {
+        // Development mode: allow mock credential for testing
+        if (process.env.NODE_ENV === 'development' && credential === 'mock_google_jwt_token_for_testing') {
             // Create or get real database user for testing
             const dbUser = await createOrUpdateUser({
                 email: 'test@example.com',
@@ -43,52 +43,53 @@ router.post('/login', async (req, res) => {
                 success: true,
                 user: user,
                 token: token,
+                message: 'Development login successful'
+            });
+        }
+
+        // Verify Google JWT token
+        try {
+            const ticket = await client.verifyIdToken({
+                idToken: credential,
+                audience: process.env.GOOGLE_CLIENT_ID,
+            });
+
+            const payload = ticket.getPayload();
+            
+            if (!payload) {
+                return res.status(400).json({ error: 'Invalid Google token' });
+            }
+
+            // Create or update user in database
+            const dbUser = await createOrUpdateUser({
+                email: payload.email,
+                name: payload.name,
+                google_id: payload.sub
+            });
+
+            const user = {
+                id: dbUser.id,
+                email: dbUser.email,
+                name: dbUser.name,
+                picture: payload.picture,
+                verified: payload.email_verified
+            };
+
+            const token = jwt.sign(
+                { userId: dbUser.id, email: dbUser.email },
+                process.env.JWT_SECRET,
+                { expiresIn: '7d' }
+            );
+
+            res.status(200).json({
+                success: true,
+                user: user,
+                token: token,
                 message: 'Login successful'
             });
-        } else {
-            // In production, verify with Google
-            try {
-                const ticket = await client.verifyIdToken({
-                    idToken: credential,
-                    audience: process.env.GOOGLE_CLIENT_ID,
-                });
-
-                const payload = ticket.getPayload();
-                
-                if (!payload) {
-                    return res.status(400).json({ error: 'Invalid Google token' });
-                }
-
-                // Create or update user in database
-                const dbUser = await createOrUpdateUser({
-                    email: payload.email,
-                    name: payload.name,
-                    google_id: payload.sub
-                });
-
-                const user = {
-                    id: dbUser.id,
-                    email: dbUser.email,
-                    name: dbUser.name,
-                    picture: payload.picture,
-                    verified: payload.email_verified
-                };
-
-                const token = jwt.sign(
-                    { userId: dbUser.id, email: dbUser.email },
-                    process.env.JWT_SECRET,
-                    { expiresIn: '7d' }
-                );
-
-                res.status(200).json({
-                    success: true,
-                    user: user,
-                    token: token,
-                    message: 'Login successful'
-                });
-            } catch (googleError) {
-                res.status(400).json({ error: 'Invalid Google credential' });
-            }
+        } catch (googleError) {
+            console.error('Google token verification failed:', googleError);
+            res.status(400).json({ error: 'Invalid Google credential' });
         }
 
     } catch (error) {

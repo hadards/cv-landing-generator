@@ -7,6 +7,7 @@ import { LandingPageService } from '../../services/landing-page.service';
 import { PreviewModalComponent } from '../preview-modal/preview-modal.component';
 import { GitHubPublishButtonComponent, PublishSuccess } from '../github-publish-button/github-publish-button.component';
 import { Subscription } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 interface WizardStep {
     id: number;
@@ -405,7 +406,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         this.isDownloading = true;
 
         try {
-            const downloadUrl = `http://localhost:3000/api/cv/download?generationId=${this.generationId}`;
+            const downloadUrl = `${environment.apiUrl.replace('/api', '')}/api/cv/download?generationId=${this.generationId}`;
 
             // Create download link
             const link = document.createElement('a');

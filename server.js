@@ -1,11 +1,13 @@
 // File: server.js
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Validate required environment variables
 if (!process.env.GEMINI_API_KEY) {
@@ -18,10 +20,85 @@ if (!process.env.JWT_SECRET) {
     process.exit(1);
 }
 
-// Global middleware
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Security middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com"],
+            connectSrc: ["'self'", "https://api.github.com", "https://github.com"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'self'"],
+            frameAncestors: ["'self'"],
+            formAction: ["'self'", "https://github.com"],
+        },
+    },
+    crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP
+    message: {
+        error: 'Too many requests',
+        message: 'Please try again later'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// More lenient rate limiting for GitHub OAuth routes
+const githubLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 50, // Allow more requests for OAuth flow
+    message: {
+        error: 'Too many GitHub requests',
+        message: 'Please try again later'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Apply rate limiting
+app.use('/api/github/', githubLimiter);
+app.use('/api/', limiter);
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+    : ['http://localhost:4200', 'http://localhost:3000'];
+
+// Add GitHub OAuth domains for redirects
+const githubDomains = ['https://github.com', 'https://api.github.com'];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, OAuth redirects)
+        if (!origin) return callback(null, true);
+        
+        // Allow configured origins
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        }
+        // Allow GitHub OAuth domains
+        else if (githubDomains.some(domain => origin.startsWith(domain))) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
+// Body parsing middleware
+const maxFileSize = process.env.MAX_FILE_SIZE || '50mb';
+app.use(express.json({ limit: maxFileSize }));
+app.use(express.urlencoded({ limit: maxFileSize, extended: true }));
 
 // Create required directories
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -77,16 +154,17 @@ app.listen(PORT, () => {
     console.log(`=================================`);
     console.log(`CV Landing Generator API Server`);
     console.log(`=================================`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Server: http://localhost:${PORT}`);
     console.log(`Health: http://localhost:${PORT}/api/health`);
-    console.log(`Upload: POST http://localhost:${PORT}/api/cv/upload`);
-    console.log(`Process: POST http://localhost:${PORT}/api/cv/process`);
-    console.log(`Generate: POST http://localhost:${PORT}/api/cv/generate`);
-    console.log(`Preview: GET http://localhost:${PORT}/api/cv/preview`);
-    console.log(`Download: GET http://localhost:${PORT}/api/cv/download`);
     console.log(`=================================`);
+    console.log(`Configuration Status:`);
     console.log(`Gemini API: ${process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
     console.log(`JWT Secret: ${process.env.JWT_SECRET ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`Database: ${process.env.DATABASE_URL ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`CORS Origins: ${allowedOrigins.join(', ')}`);
+    console.log(`Rate Limiting: ${limiter.max} requests per ${limiter.windowMs/1000/60} minutes`);
     console.log(`=================================`);
 });
 

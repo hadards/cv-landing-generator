@@ -265,6 +265,11 @@ router.post('/generate', verifyToken, async (req, res) => {
 
 // Preview landing page endpoint
 router.get('/preview', async (req, res) => {
+    // Remove security headers to allow iframe embedding
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
+    res.removeHeader('X-Frame-Options');
+    
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -309,7 +314,7 @@ router.get('/preview', async (req, res) => {
         let htmlContent = fs.readFileSync(indexPath, 'utf8');
 
         // Update relative paths to work with our static file server
-        const baseUrl = `http://localhost:3000/api/cv/static?previewId=${previewId}&file=`;
+        const baseUrl = `${req.protocol}://${req.get('host')}/api/cv/static?previewId=${previewId}&file=`;
         
         // Replace CSS and JS references
         htmlContent = htmlContent.replace(
@@ -345,6 +350,11 @@ router.get('/preview', async (req, res) => {
 
 // Static file handler for CSS, JS, and other assets
 router.get('/static', async (req, res) => {
+    // Remove security headers to allow iframe embedding of static assets
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
+    res.removeHeader('X-Frame-Options');
+    
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');

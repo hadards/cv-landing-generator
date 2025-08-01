@@ -145,3 +145,6 @@ NODE_ENV=development                     # Environment mode
   - Don't run the project yourself without prior confirmation
   - Always ask for permission before executing project scripts
   - Most times, the project owner prefers to run it themselves to avoid port conflicts
+
+### Batch Commands
+- batch commands should be windows os
