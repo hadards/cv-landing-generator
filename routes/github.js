@@ -1,7 +1,7 @@
 // File: routes/github.js - GitHub OAuth and API endpoints
 const express = require('express');
 const { Octokit } = require('@octokit/rest');
-const { createOrUpdateUser, getUserById } = require('../database/services');
+const { createOrUpdateUser, getUserById, updateSiteDeployment } = require('../database/services');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs').promises;
@@ -661,6 +661,19 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
         const failedUploads = uploadResults.filter(r => !r.success).length;
         const publishTime = Date.now() - publishStartTime;
         const success = successfulUploads > 0;
+        
+        // Update database with GitHub URLs and deployment status
+        try {
+            await updateSiteDeployment(jobId, {
+                github_url: repo.html_url,
+                pages_url: pagesUrl,
+                deployment_status: pagesUrl ? 'deployed' : 'published'
+            });
+            console.log('Database updated with GitHub URLs for job:', jobId);
+        } catch (dbError) {
+            console.error('Failed to update database with GitHub URLs:', dbError);
+            // Don't fail the whole operation if database update fails
+        }
         
         // Record GitHub publish metrics
         recordGitHubPublish(req.user.id, publishTime, success);
