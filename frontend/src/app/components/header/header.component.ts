@@ -9,77 +9,59 @@ import { AuthService, User } from '../../services/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <header class="warm-header sticky top-0 z-50 fade-in">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
       <nav class="container">
         <div class="flex justify-between items-center py-4">
-          <!-- Logo - Warm and friendly -->
+          <!-- Logo -->
           <div class="flex items-center space-x-3">
-            <div class="w-12 h-12 bg-gradient rounded-xl flex items-center justify-center shadow-lg warm-logo">
-              <div class="w-6 h-6 bg-white rounded-sm flex items-center justify-center">
-                <span class="text-warm-orange font-bold text-sm">CV</span>
-              </div>
+            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span class="text-white font-bold text-sm">CV</span>
             </div>
             <div>
-              <h1 class="text-xl font-bold warm-text-primary">CVLanding</h1>
-              <p class="text-sm warm-text-secondary -mt-1">Create • Share • Shine</p>
+              <h1 class="text-xl font-bold text-gray-900">CVLanding</h1>
+              <p class="text-sm text-gray-600 -mt-1">Create • Share • Shine</p>
             </div>
           </div>
 
-          <!-- Navigation - Clean and readable -->
+          <!-- Navigation -->
           <div class="hidden md:flex items-center space-x-2">
             <a routerLink="/home" 
                routerLinkActive="active" 
                [routerLinkActiveOptions]="{exact: true}"
-               class="warm-nav-link">
+               class="nav-link">
               Home
             </a>
             
             <a *ngIf="user" 
-               routerLink="/dashboard" 
-               routerLinkActive="active"
-               class="warm-nav-link">
-              Dashboard
-            </a>
-
-            <a *ngIf="user" 
                routerLink="/upload" 
                routerLinkActive="active"
-               class="warm-nav-link">
+               class="nav-link">
               Create
             </a>
 
             <a *ngIf="!user" 
                routerLink="/test" 
                routerLinkActive="active"
-               class="warm-nav-link">
+               class="nav-link">
               Test API
-            </a>
-
-            <a *ngIf="user" 
-               routerLink="/github-debug" 
-               routerLinkActive="active"
-               class="warm-nav-link">
-              🐙 GitHub Debug
             </a>
           </div>
 
-          <!-- User Actions - Warm styling -->
+          <!-- User Actions -->
           <div class="flex items-center space-x-3">
             <!-- Mobile Menu Button -->
             <button *ngIf="!user" 
                     (click)="toggleMobileMenu()" 
-                    class="md:hidden warm-btn-ghost p-2">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-              </svg>
+                    class="md:hidden btn-ghost p-2">
+              Menu
             </button>
 
             <!-- Auth Buttons -->
             <div *ngIf="!user" class="hidden md:flex items-center space-x-3">
-              <a routerLink="/login" class="warm-btn-secondary">
+              <a routerLink="/login" class="btn-secondary">
                 Sign In
               </a>
-              <a routerLink="/login" class="warm-btn-primary">
+              <a routerLink="/login" class="btn-primary">
                 Get Started
               </a>
             </div>
@@ -87,46 +69,34 @@ import { AuthService, User } from '../../services/auth.service';
             <!-- User Menu -->
             <div *ngIf="user" class="flex items-center space-x-3">
               <div class="hidden md:flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-warm-coral shadow-md">
+                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-blue-500 shadow-md">
                   <img [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover">
                 </div>
                 <div class="hidden lg:block">
-                  <p class="text-sm font-semibold warm-text-primary">{{ getFirstName(user.name) }}</p>
-                  <p class="text-xs warm-text-secondary">{{ user.email }}</p>
+                  <p class="text-sm font-semibold text-gray-900">{{ getFirstName(user.name) }}</p>
+                  <p class="text-xs text-gray-600">{{ user.email }}</p>
                 </div>
               </div>
               
               <div class="relative">
                 <button (click)="toggleUserMenu()" 
-                        class="warm-btn-ghost p-2"
-                        [class.warm-btn-active]="showUserMenu">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                  </svg>
+                        class="btn-ghost p-2"
+                        [class.btn-active]="showUserMenu">
+                  ▼
                 </button>
                 
                 <!-- Dropdown Menu -->
                 <div *ngIf="showUserMenu" 
-                     class="absolute right-0 mt-2 w-48 warm-dropdown scale-in z-50">
+                     class="absolute right-0 mt-2 w-48 dropdown z-50">
                   <div class="py-2">
-                    <a routerLink="/dashboard" 
-                       (click)="closeUserMenu()"
-                       class="warm-dropdown-item">
-                      Dashboard
-                    </a>
                     <a routerLink="/upload" 
                        (click)="closeUserMenu()"
-                       class="warm-dropdown-item">
+                       class="dropdown-item">
                       Create Landing Page
                     </a>
-                    <a routerLink="/github-debug" 
-                       (click)="closeUserMenu()"
-                       class="warm-dropdown-item">
-                      🐙 GitHub Debug
-                    </a>
-                    <hr class="my-2 border-warm-peach">
+                    <hr class="my-2 border-gray-200">
                     <button (click)="logout()" 
-                            class="warm-dropdown-item text-red-600 hover:bg-red-50 w-full text-left">
+                            class="dropdown-item text-red-600 hover:bg-red-50 w-full text-left">
                       Sign Out
                     </button>
                   </div>
@@ -138,27 +108,27 @@ import { AuthService, User } from '../../services/auth.service';
 
         <!-- Mobile Menu -->
         <div *ngIf="showMobileMenu && !user" 
-             class="md:hidden py-4 border-t border-warm-peach mt-4 slide-up">
+             class="md:hidden py-4 border-t border-gray-200 mt-4">
           <div class="flex flex-col space-y-2">
             <a routerLink="/home" 
                (click)="closeMobileMenu()"
-               class="warm-nav-link">
+               class="nav-link">
               Home
             </a>
             <a routerLink="/test" 
                (click)="closeMobileMenu()"
-               class="warm-nav-link">
+               class="nav-link">
               Test API
             </a>
             <div class="pt-4 flex flex-col space-y-3">
               <a routerLink="/login" 
                  (click)="closeMobileMenu()"
-                 class="warm-btn-secondary text-center">
+                 class="btn-secondary text-center">
                 Sign In
               </a>
               <a routerLink="/login" 
                  (click)="closeMobileMenu()"
-                 class="warm-btn-primary text-center">
+                 class="btn-primary text-center">
                 Get Started
               </a>
             </div>
@@ -168,142 +138,102 @@ import { AuthService, User } from '../../services/auth.service';
     </header>
   `,
   styles: [`
-    /* Component-specific warm styling */
-    .warm-header {
-      background: linear-gradient(135deg, #ffffff 0%, #fff4f1 100%);
-      border-bottom: 3px solid #ff8a65;
-      box-shadow: 0 4px 20px rgba(255, 107, 53, 0.1);
-    }
-
-    .warm-logo {
-      background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 50%, #ffa726 100%);
-    }
-
-    .warm-text-primary {
-      color: #3e2723;
-      background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
-      background-clip: text;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .warm-text-secondary {
-      color: #5d4037;
-    }
-
-    .warm-nav-link {
-      color: #5d4037;
+    .nav-link {
+      color: #6b7280;
       font-weight: 500;
-      padding: 0.75rem 1.25rem;
-      border-radius: 12px;
-      transition: all 0.3s ease;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
     }
 
-    .warm-nav-link:hover {
-      color: #ff6b35;
-      background: rgba(255, 244, 241, 0.8);
-      transform: translateY(-1px);
+    .nav-link:hover {
+      color: #1f2937;
+      background: #f3f4f6;
     }
 
-    .warm-nav-link.active {
+    .nav-link.active {
+      color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .btn-primary {
+      background: #2563eb;
       color: white;
-      background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
-      box-shadow: 0 4px 15px rgba(255, 107, 53, 0.25);
-    }
-
-    .warm-btn-primary {
-      background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
-      color: white;
-      font-weight: 600;
-      padding: 0.75rem 1.5rem;
-      border-radius: 12px;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
       border: none;
       text-decoration: none;
-      font-size: 0.9rem;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(255, 107, 53, 0.15);
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
       display: inline-block;
       text-align: center;
     }
 
-    .warm-btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(255, 107, 53, 0.25);
-      filter: brightness(1.05);
+    .btn-primary:hover {
+      background: #1d4ed8;
     }
 
-    .warm-btn-secondary {
+    .btn-secondary {
       background: white;
-      color: #ff6b35;
+      color: #2563eb;
       font-weight: 500;
-      padding: 0.75rem 1.5rem;
-      border: 2px solid #ff8a65;
-      border-radius: 12px;
+      padding: 0.5rem 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
       text-decoration: none;
-      font-size: 0.9rem;
-      transition: all 0.3s ease;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
       display: inline-block;
       text-align: center;
     }
 
-    .warm-btn-secondary:hover {
-      background: #fff4f1;
-      border-color: #ff6b35;
-      transform: translateY(-1px);
+    .btn-secondary:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
     }
 
-    .warm-btn-ghost {
+    .btn-ghost {
       background: transparent;
-      color: #5d4037;
+      color: #6b7280;
       font-weight: 500;
       border: none;
-      border-radius: 12px;
+      border-radius: 6px;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
     }
 
-    .warm-btn-ghost:hover {
-      background: rgba(255, 244, 241, 0.8);
-      color: #ff6b35;
+    .btn-ghost:hover {
+      background: #f3f4f6;
+      color: #1f2937;
     }
 
-    .warm-btn-active {
-      background: rgba(255, 244, 241, 0.8);
-      color: #ff6b35;
+    .btn-active {
+      background: #f3f4f6;
+      color: #1f2937;
     }
 
-    .warm-dropdown {
+    .dropdown {
       background: white;
-      border: 1px solid rgba(255, 138, 101, 0.2);
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(255, 107, 53, 0.15);
-      backdrop-filter: blur(20px);
-    }
-
-    .warm-dropdown-item {
-      display: block;
-      padding: 0.75rem 1rem;
-      color: #5d4037;
-      text-decoration: none;
-      transition: all 0.3s ease;
+      border: 1px solid #e5e7eb;
       border-radius: 8px;
-      margin: 0 0.5rem;
-      font-size: 0.9rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
 
-    .warm-dropdown-item:hover {
-      background: #fff4f1;
-      color: #ff6b35;
+    .dropdown-item {
+      display: block;
+      padding: 0.5rem 1rem;
+      color: #6b7280;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-size: 0.875rem;
     }
 
-    .ring-warm-coral {
-      --tw-ring-color: #ff8a65;
-    }
-
-    .border-warm-peach {
-      border-color: #ffb4a2;
+    .dropdown-item:hover {
+      background: #f3f4f6;
+      color: #1f2937;
     }
   `]
 })

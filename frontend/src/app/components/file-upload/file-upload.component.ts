@@ -19,11 +19,8 @@ import { LandingPageService } from '../../services/landing-page.service';
            (drop)="onDrop($event)">
         
         <div class="space-y-4">
-          <div class="mx-auto w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
-            <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-            </svg>
+          <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+            <span class="text-sm font-semibold text-blue-600">CV</span>
           </div>
           
           <div>
@@ -50,10 +47,7 @@ import { LandingPageService } from '../../services/landing-page.service';
             class="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center mt-6">
         <div class="space-y-4">
             <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-            </svg>
+                <span class="text-xs font-semibold text-blue-600">PHOTO</span>
             </div>
             
             <div>
@@ -103,7 +97,7 @@ import { LandingPageService } from '../../services/landing-page.service';
           </div>
           
           <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
-            <div class="bg-primary-600 h-2 rounded-full transition-all duration-300" 
+            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                  [style.width.%]="uploadProgress.percentage"></div>
           </div>
           
@@ -112,10 +106,9 @@ import { LandingPageService } from '../../services/landing-page.service';
           <!-- File Info -->
           <div *ngIf="uploadProgress.file" class="mt-4 p-3 bg-gray-50 rounded border">
             <div class="flex items-center space-x-3">
-              <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-              </svg>
+              <div class="w-5 h-5 bg-gray-200 rounded flex items-center justify-center">
+                <span class="text-xs text-gray-600">F</span>
+              </div>
               <div>
                 <p class="text-sm font-medium text-gray-900">{{ uploadProgress.file.originalName }}</p>
                 <p class="text-xs text-gray-500">{{ formatFileSize(uploadProgress.file.size) }}</p>
@@ -159,9 +152,9 @@ import { LandingPageService } from '../../services/landing-page.service';
         <!-- Generation Result -->
         <div *ngIf="generationResult" class="bg-white rounded-lg border border-gray-200 p-6 mt-4">
         <div class="flex items-center mb-4">
-            <svg class="w-6 h-6 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
+            <div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                <span class="text-xs font-bold text-green-600">✓</span>
+            </div>
             <h4 class="text-lg font-medium text-gray-900">Landing Page Generated!</h4>
         </div>
         
@@ -186,10 +179,9 @@ import { LandingPageService } from '../../services/landing-page.service';
       <div *ngIf="uploadProgress?.status === 'error'" 
            class="bg-red-50 border border-red-200 rounded-lg p-6">
         <div class="flex items-center">
-          <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
+          <div class="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center mr-2">
+            <span class="text-xs font-bold text-red-600">!</span>
+          </div>
           <span class="text-red-800 font-medium">Upload Failed</span>
         </div>
         <p class="text-red-700 text-sm mt-1">{{ uploadProgress?.message }}</p>

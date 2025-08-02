@@ -33,9 +33,7 @@
                [class.completed]="step.completed"
                [class.active]="step.active"
                [class.pending]="!step.completed && !step.active">
-            <svg *ngIf="step.completed" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
+            <span *ngIf="step.completed" class="text-xs font-bold">✓</span>
             <span *ngIf="!step.completed">{{ step.id }}</span>
           </div>
           
@@ -118,7 +116,7 @@
       <div *ngIf="uploadedFile" class="file-upload-card max-w-md mx-auto p-6">
         <div class="flex items-center space-x-4">
           <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center border-2 border-green-300">
-            <span class="text-green-600 font-bold text-lg">✓</span>
+            <span class="text-green-600 font-bold text-lg">OK</span>
           </div>
           <div class="flex-1 text-left">
             <p class="file-name font-semibold">{{ uploadedFile.name }}</p>
@@ -206,7 +204,7 @@
         <div class="card max-w-md mx-auto p-8 bg-gradient-to-br from-warm-cream to-warm-yellow">
           <div class="space-y-6">
             <div class="w-16 h-16 bg-gradient rounded-xl flex items-center justify-center mx-auto shadow-lg">
-              <span class="text-white font-bold text-2xl">⚡</span>
+              <span class="text-white font-bold text-sm">PROC</span>
             </div>
             <div>
               <h3 class="text-lg font-semibold warm-text-primary mb-2">Ready to Process</h3>
@@ -239,7 +237,7 @@
               <span class="warm-text-secondary">{{ phase.name }}</span>
               <div class="flex items-center space-x-2">
                 <div *ngIf="phase.status === 'completed'" class="w-4 h-4 text-green-500">
-                  <span class="font-bold">✓</span>
+                  <span class="font-bold">OK</span>
                 </div>
                 <div *ngIf="phase.status === 'processing'" class="loading-spinner w-4 h-4"></div>
                 <div *ngIf="phase.status === 'pending'" class="w-4 h-4 bg-warm-taupe rounded-full"></div>
@@ -251,7 +249,7 @@
 
       <div *ngIf="cvData && !isProcessing" class="text-center">
         <div class="status-success max-w-md mx-auto mb-6">
-          <span class="font-bold mr-2">✓</span>
+          <span class="font-bold mr-2">OK</span>
           Content generated successfully!
         </div>
         <p class="warm-text-secondary mb-6">
@@ -265,7 +263,7 @@
       <div class="text-center mb-8">
         <div class="w-16 h-16 bg-yellow-100 rounded-xl flex items-center justify-center mx-auto mb-6">
           <div class="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
-            <span class="text-white font-bold">✎</span>
+            <span class="text-white font-bold text-xs">GEN</span>
           </div>
         </div>
         <h2 class="text-2xl font-bold warm-text-primary mb-4">Review & Edit</h2>
@@ -318,7 +316,7 @@
         <div class="card max-w-md mx-auto p-8 bg-gradient-to-br from-purple-50 to-pink-50">
           <div class="space-y-6">
             <div class="w-16 h-16 bg-gradient rounded-xl flex items-center justify-center mx-auto shadow-lg">
-              <span class="text-white font-bold text-2xl">🚀</span>
+              <span class="text-white font-bold text-sm">DONE</span>
             </div>
             <div>
               <h3 class="text-lg font-semibold warm-text-primary mb-2">Ready to Launch</h3>
@@ -353,7 +351,7 @@
         <div class="card max-w-lg mx-auto p-8 bg-green-50 border-green-200">
           <div class="text-center space-y-6">
             <div class="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto">
-              <span class="text-green-600 font-bold text-2xl">✓</span>
+              <span class="text-green-600 font-bold text-lg">READY</span>
             </div>
             <div>
               <h3 class="text-xl font-bold warm-text-primary mb-2">Website Created!</h3>
@@ -400,10 +398,10 @@
             <div class="bg-white border border-green-200 rounded-lg p-4 mt-6">
               <h4 class="font-semibold text-green-800 mb-2">What's Next?</h4>
               <div class="text-sm text-green-700 space-y-1">
-                <p>✓ Preview your website to see how it looks</p>
-                <p>✓ Download the complete website files</p>
-                <p>✓ Upload to your hosting provider</p>
-                <p>✓ Share your professional URL</p>
+                <p>• Preview your website to see how it looks</p>
+                <p>• Download the complete website files</p>
+                <p>• Upload to your hosting provider</p>
+                <p>• Share your professional URL</p>
               </div>
             </div>
           </div>

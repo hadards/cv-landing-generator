@@ -2,19 +2,17 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { HeaderComponent } from './components/header/header.component';
-import { FooterComponent } from './components/footer/footer.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, FooterComponent],
+  imports: [RouterOutlet, HeaderComponent],
   template: `
-    <div class="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-blue-50">
+    <div class="min-h-screen bg-white">
       <app-header></app-header>
       <main class="flex-1">
         <router-outlet></router-outlet>
       </main>
-      <app-footer></app-footer>
     </div>
   `,
   styles: [`

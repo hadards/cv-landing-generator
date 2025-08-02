@@ -22,13 +22,13 @@ interface TestResult {
   template: `
     <div class="github-debug-container">
       <div class="debug-header">
-        <h1>🐙 GitHub Integration Debug Dashboard</h1>
+        <h1>GitHub Integration Debug Dashboard</h1>
         <p>Test GitHub API operations before integrating with CV generation</p>
       </div>
 
       <!-- Authentication Status -->
       <div class="status-section">
-        <h2>🔐 Authentication Status</h2>
+        <h2>Authentication Status</h2>
         <div class="status-card" [ngClass]="{'connected': authService.isLoggedIn(), 'disconnected': !authService.isLoggedIn()}">
           <div class="status-indicator">
             <span class="status-dot" [ngClass]="{'green': authService.isLoggedIn(), 'red': !authService.isLoggedIn()}"></span>
@@ -47,7 +47,7 @@ interface TestResult {
 
       <!-- GitHub Connection Status -->
       <div class="status-section">
-        <h2>📡 GitHub Connection Status</h2>
+        <h2>GitHub Connection Status</h2>
         <div class="status-card" [ngClass]="{'connected': connectionStatus?.connected, 'disconnected': !connectionStatus?.connected}">
           <div class="status-indicator">
             <span class="status-dot" [ngClass]="{'green': connectionStatus?.connected, 'red': !connectionStatus?.connected}"></span>
@@ -111,7 +111,7 @@ interface TestResult {
             class="btn btn-success" 
             (click)="createRepository()" 
             [disabled]="isLoading || !connectionStatus?.connected || !newRepoName">
-            ➕ Create Repository
+            Create Repository
           </button>
         </div>
 
@@ -165,7 +165,7 @@ interface TestResult {
             class="btn btn-primary" 
             (click)="testPushCVSite()" 
             [disabled]="isLoading || !connectionStatus?.connected || !selectedJobId">
-            🚀 Test Push CV Site
+            Test Push CV Site
           </button>
         </div>
       </div>
@@ -182,7 +182,7 @@ interface TestResult {
                class="result-item" 
                [ngClass]="{'success': result.success, 'error': !result.success}">
             <div class="result-header">
-              <span class="result-icon">{{ result.success ? '✅' : '❌' }}</span>
+              <span class="result-icon">{{ result.success ? 'SUCCESS' : 'FAILED' }}</span>
               <span class="result-timestamp">{{ result.timestamp | date:'medium' }}</span>
             </div>
             <div class="result-message">{{ result.message }}</div>
