@@ -4,7 +4,7 @@ const path = require('path');
 const archiver = require('archiver');
 const { randomUUID } = require('crypto');
 
-const CVParser = require('../lib/cv-parser-modular');
+const IntelligentCVProcessor = require('../lib/intelligent-cv-processor-gemini');
 const TemplateProcessor = require('../lib/template-processor');
 const { 
     saveFileUpload, 
@@ -19,7 +19,7 @@ const {
 
 // Initialize services
 const templateProcessor = new TemplateProcessor();
-const cvParser = new CVParser();
+const intelligentProcessor = new IntelligentCVProcessor();
 
 class CVController {
     
@@ -92,17 +92,17 @@ class CVController {
 
             // Extract text from the uploaded file
             console.log('Extracting text from file...');
-            const extractedText = await cvParser.extractTextFromFile(fileInfo.filepath, fileInfo.mime_type);
+            const extractedText = await intelligentProcessor.extractTextFromFile(fileInfo.filepath, fileInfo.mime_type);
             console.log('Extracted text length:', extractedText.length);
 
             if (!extractedText || extractedText.trim().length === 0) {
                 throw new Error('No text could be extracted from the file');
             }
 
-            // Structure the data with AI processing
-            console.log('Processing with Modular CV Parser...');
-            const structuredData = await cvParser.processCV(extractedText);
-            console.log('Structured data generated for:', structuredData.personalInfo?.name);
+            // Structure the data with Intelligent CV Processor + Memory
+            console.log('Processing with Intelligent CV Processor (Gemini + Memory)...');
+            const structuredData = await intelligentProcessor.processCV(extractedText, req.user.userId);
+            console.log('✅ Intelligent processing completed for:', structuredData.personalInfo?.name);
 
             // Validate the structured data
             if (!structuredData.personalInfo?.name) {
@@ -120,11 +120,19 @@ class CVController {
 
             res.status(200).json({
                 success: true,
-                message: 'CV processed successfully',
+                message: 'CV processed with Intelligent Processor (Gemini + Memory)',
                 extractedText: extractedText,
                 structuredData: structuredData,
                 fileId: fileId,
-                processedAt: new Date().toISOString()
+                processedAt: new Date().toISOString(),
+                processingMetadata: {
+                    processor: 'IntelligentCVProcessorGemini',
+                    sessionMemoryUsed: structuredData.processingMetadata?.sessionMemoryUsed,
+                    llmProvider: structuredData.processingMetadata?.llmProvider,
+                    stepsCompleted: structuredData.processingInfo?.stepsCompleted,
+                    profession: structuredData.processingInfo?.profession,
+                    experienceLevel: structuredData.processingInfo?.experienceLevel
+                }
             });
 
         } catch (error) {

@@ -202,7 +202,9 @@ const server = app.listen(PORT, async () => {
     console.log(`Database: ${process.env.DATABASE_URL ? '✓ Configured' : '✗ Missing'}`);
     console.log(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? '✓ Configured' : '✗ Missing'}`);
     console.log(`CORS Origins: ${allowedOrigins.join(', ')}`);
-    console.log(`Rate Limiting: ${limiter.max} requests per ${limiter.windowMs/1000/60} minutes`);
+    const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100;
+    const rateLimitWindow = (parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000 / 60;
+    console.log(`Rate Limiting: ${rateLimitMax} requests per ${rateLimitWindow} minutes`);
     console.log(`=================================`);
     
     // Test database connection

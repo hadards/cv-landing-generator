@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const { randomUUID } = require('crypto');
 const { body, param, query, validationResult } = require('express-validator');
 
-const CVParser = require('../lib/cv-parser-modular');
+const IntelligentCVProcessor = require('../lib/intelligent-cv-processor-gemini');
 const TemplateProcessor = require('../lib/template-processor');
 const { 
     saveGeneratedSite, 
@@ -28,7 +28,7 @@ const router = express.Router();
 
 // Initialize services
 const templateProcessor = new TemplateProcessor();
-const cvParser = new CVParser();
+const intelligentProcessor = new IntelligentCVProcessor();
 
 // Configure multer for file uploads
 const upload = multer({
@@ -236,17 +236,17 @@ router.post('/process',
 
         // Extract text from the uploaded file
         console.log('Extracting text from file...');
-        const extractedText = await cvParser.extractTextFromFile(fileInfo.path, fileInfo.mimetype);
+        const extractedText = await intelligentProcessor.extractTextFromFile(fileInfo.path, fileInfo.mimetype);
         console.log('Extracted text length:', extractedText.length);
 
         if (!extractedText || extractedText.trim().length === 0) {
             throw new Error('No text could be extracted from the file');
         }
 
-        // Structure the data with AI processing
-        console.log('Processing with Modular CV Parser...');
-        const structuredData = await cvParser.processCV(extractedText);
-        console.log('Structured data generated for:', structuredData.personalInfo?.name);
+        // Structure the data with Intelligent AI processing
+        console.log('Processing with Intelligent CV Processor (Gemini + Memory)...');
+        const structuredData = await intelligentProcessor.processCV(extractedText, req.user.userId);
+        console.log('Intelligent processing completed for:', structuredData.personalInfo?.name);
         
         const processingTime = Date.now() - processingStartTime;
         recordCVProcessing(req.user.userId, processingTime);
