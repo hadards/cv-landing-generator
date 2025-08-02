@@ -8,7 +8,8 @@
     "build": "cd frontend && ng build",
     "test:llm": "node test-llm-clients.js",
     "test:gemini": "node test-llm-clients.js gemini",
-    "test:ollama": "node test-llm-clients.js ollama"
+    "test:ollama": "node test-llm-clients.js ollama",
+    "db:test": "node -e \"require('dotenv').config(); const db = require('./database/index'); db.testConnection().then(r => console.log(r)).then(() => db.closeDatabase());\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

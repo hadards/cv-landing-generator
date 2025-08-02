@@ -2,17 +2,24 @@
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
+const { randomUUID } = require('crypto');
 
 const CVParser = require('../lib/cv-parser-modular');
 const TemplateProcessor = require('../lib/template-processor');
+const { 
+    saveFileUpload, 
+    getFileUploadById, 
+    updateFileUpload,
+    saveGeneratedSite,
+    getGeneratedSiteById,
+    updateSiteDeployment,
+    getUserSites,
+    logProcessing 
+} = require('../database/services');
 
 // Initialize services
 const templateProcessor = new TemplateProcessor();
 const cvParser = new CVParser();
-
-// In-memory storage (replace with database in production)
-const uploadedFiles = new Map();
-const generatedLandingPages = new Map();
 
 class CVController {
     
@@ -26,24 +33,36 @@ class CVController {
             }
 
             const fileInfo = {
-                id: Date.now().toString(),
-                originalName: uploadedFile.originalname,
-                filename: uploadedFile.filename,
-                path: uploadedFile.path,
-                size: uploadedFile.size,
-                mimetype: uploadedFile.mimetype,
-                uploadedAt: new Date().toISOString(),
-                userId: req.user.userId,
-                status: 'uploaded'
+                id: randomUUID(),
+                user_id: req.user.userId,
+                filename: uploadedFile.originalname,
+                filepath: uploadedFile.path,
+                file_size: uploadedFile.size,
+                mime_type: uploadedFile.mimetype,
+                extracted_text: null,
+                structured_data: null
             };
 
-            // Store file info
-            uploadedFiles.set(fileInfo.id, fileInfo);
+            // Store file info in database
+            await saveFileUpload(fileInfo);
+            
+            // Log the operation
+            await logProcessing(req.user.userId, 'file_upload', 'success');
 
             res.status(200).json({
                 success: true,
                 message: 'File uploaded successfully',
-                file: fileInfo
+                file: {
+                    id: fileInfo.id,
+                    originalName: uploadedFile.originalname,
+                    filename: uploadedFile.filename,
+                    path: uploadedFile.path,
+                    size: uploadedFile.size,
+                    mimetype: uploadedFile.mimetype,
+                    uploadedAt: new Date().toISOString(),
+                    userId: req.user.userId,
+                    status: 'uploaded'
+                }
             });
 
         } catch (error) {
@@ -64,16 +83,16 @@ class CVController {
                 return res.status(400).json({ error: 'File ID is required' });
             }
 
-            const fileInfo = uploadedFiles.get(fileId);
+            const fileInfo = await getFileUploadById(fileId);
             if (!fileInfo) {
                 return res.status(404).json({ error: 'File not found' });
             }
 
-            console.log('Processing CV file:', fileInfo.originalName);
+            console.log('Processing CV file:', fileInfo.filename);
 
             // Extract text from the uploaded file
             console.log('Extracting text from file...');
-            const extractedText = await cvParser.extractTextFromFile(fileInfo.path, fileInfo.mimetype);
+            const extractedText = await cvParser.extractTextFromFile(fileInfo.filepath, fileInfo.mime_type);
             console.log('Extracted text length:', extractedText.length);
 
             if (!extractedText || extractedText.trim().length === 0) {
@@ -90,12 +109,14 @@ class CVController {
                 throw new Error('Unable to extract name from CV');
             }
 
-            // Update file status
-            fileInfo.status = 'processed';
-            fileInfo.processedAt = new Date().toISOString();
-            fileInfo.extractedText = extractedText;
-            fileInfo.structuredData = structuredData;
-            uploadedFiles.set(fileId, fileInfo);
+            // Update file in database
+            await updateFileUpload(fileId, {
+                extracted_text: extractedText,
+                structured_data: structuredData
+            });
+            
+            // Log the processing
+            await logProcessing(req.user.userId, 'cv_processing', 'success');
 
             res.status(200).json({
                 success: true,
@@ -124,14 +145,29 @@ class CVController {
                 return res.status(400).json({ error: 'File ID is required' });
             }
 
-            const fileInfo = uploadedFiles.get(fileId);
+            const fileInfo = await getFileUploadById(fileId);
             if (!fileInfo) {
                 return res.status(404).json({ error: 'File not found' });
             }
 
+            // Convert to expected format
+            const responseFile = {
+                id: fileInfo.id,
+                originalName: fileInfo.filename,
+                filename: fileInfo.filename,
+                path: fileInfo.filepath,
+                size: fileInfo.file_size,
+                mimetype: fileInfo.mime_type,
+                uploadedAt: fileInfo.created_at,
+                userId: fileInfo.user_id,
+                status: fileInfo.extracted_text ? 'processed' : 'uploaded',
+                extractedText: fileInfo.extracted_text,
+                structuredData: fileInfo.structured_data
+            };
+
             res.status(200).json({
                 success: true,
-                file: fileInfo
+                file: responseFile
             });
 
         } catch (error) {
@@ -160,30 +196,44 @@ class CVController {
             console.log('Generating landing page for:', structuredData.personalInfo.name);
             console.log('User ID:', req.user.userId);
 
+            // Generate unique ID for this generation
+            const generationId = randomUUID();
+            
             // Generate the landing page using real CV data
-            const outputDir = path.join(__dirname, '../generated', req.user.userId, Date.now().toString());
+            const outputDir = path.join(__dirname, '../generated', req.user.userId, generationId.replace(/-/g, ''));
             const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
 
-            // Store generation info
+            // Store generation info in database
             const generationInfo = {
-                id: Date.now().toString(),
-                userId: req.user.userId,
-                outputDir: outputDir,
-                generatedAt: new Date().toISOString(),
-                files: result.files,
-                cvData: structuredData,
-                personName: structuredData.personalInfo.name
+                id: generationId,
+                user_id: req.user.userId,
+                name: structuredData.personalInfo.name,
+                structured_data: structuredData,
+                html_content: result.files.find(f => f.endsWith('index.html')) ? fs.readFileSync(path.join(outputDir, 'index.html'), 'utf8') : null,
+                css_content: result.files.find(f => f.endsWith('styles.css')) ? fs.readFileSync(path.join(outputDir, 'styles.css'), 'utf8') : null,
+                folder_path: outputDir
             };
 
-            // Store for later retrieval
-            generatedLandingPages.set(generationInfo.id, generationInfo);
+            // Save to database
+            await saveGeneratedSite(generationInfo);
+            
+            // Log the generation
+            await logProcessing(req.user.userId, 'landing_page_generation', 'success');
 
             console.log('Landing page generated successfully for:', structuredData.personalInfo.name);
 
             res.status(200).json({
                 success: true,
                 message: `Landing page generated successfully for ${structuredData.personalInfo.name}`,
-                generation: generationInfo,
+                generation: {
+                    id: generationInfo.id,
+                    userId: req.user.userId,
+                    outputDir: outputDir,
+                    generatedAt: new Date().toISOString(),
+                    files: result.files,
+                    cvData: structuredData,
+                    personName: structuredData.personalInfo.name
+                },
                 previewUrl: `/preview/${generationInfo.id}`
             });
 
@@ -207,14 +257,17 @@ class CVController {
 
             console.log('Loading preview for ID:', previewId);
 
-            // Get generation info from our storage
-            const generationInfo = generatedLandingPages.get(previewId);
+            // Get generation info from database
+            const siteInfo = await getGeneratedSiteById(previewId);
             
-            if (!generationInfo) {
+            if (!siteInfo) {
                 return res.status(404).json({ error: 'Preview not found' });
             }
-
-            const outputDir = generationInfo.outputDir;
+            
+            const outputDir = siteInfo.folder_path;
+            const generationInfo = {
+                personName: siteInfo.name
+            };
             const indexPath = path.join(outputDir, 'index.html');
             
             if (!fs.existsSync(indexPath)) {
@@ -270,14 +323,14 @@ class CVController {
 
             console.log('Serving static file:', file, 'for preview:', previewId);
 
-            // Get generation info
-            const generationInfo = generatedLandingPages.get(previewId);
+            // Get generation info from database
+            const siteInfo = await getGeneratedSiteById(previewId);
             
-            if (!generationInfo) {
+            if (!siteInfo) {
                 return res.status(404).json({ error: 'Preview not found' });
             }
 
-            const filePath = path.join(generationInfo.outputDir, file);
+            const filePath = path.join(siteInfo.folder_path, file);
             
             if (!fs.existsSync(filePath)) {
                 return res.status(404).json({ error: 'File not found' });
@@ -326,13 +379,16 @@ class CVController {
 
             console.log('Download requested for generation:', generationId);
 
-            const generationInfo = generatedLandingPages.get(generationId);
+            const siteInfo = await getGeneratedSiteById(generationId);
             
-            if (!generationInfo) {
+            if (!siteInfo) {
                 return res.status(404).json({ error: 'Generation not found' });
             }
 
-            const outputDir = generationInfo.outputDir;
+            const outputDir = siteInfo.folder_path;
+            const generationInfo = {
+                personName: siteInfo.name
+            };
             
             if (!fs.existsSync(outputDir)) {
                 return res.status(404).json({ error: 'Generated files not found' });
@@ -399,13 +455,14 @@ class CVController {
     }
 
     // Get uploaded files for user (for dashboard)
-    static getUploadedFiles() {
-        return uploadedFiles;
+    static async getUploadedFiles(userId) {
+        // This would need implementation in database services if needed
+        return [];
     }
 
     // Get generated landing pages for user (for dashboard)
-    static getGeneratedLandingPages() {
-        return generatedLandingPages;
+    static async getGeneratedLandingPages(userId) {
+        return await getUserSites(userId);
     }
 }
 

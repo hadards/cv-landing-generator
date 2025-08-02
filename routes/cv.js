@@ -5,13 +5,15 @@ const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 const jwt = require('jsonwebtoken');
+const { randomUUID } = require('crypto');
 const { body, param, query, validationResult } = require('express-validator');
 
 const CVParser = require('../lib/cv-parser-modular');
 const TemplateProcessor = require('../lib/template-processor');
 const { 
-    createUserSite, 
-    getUserSiteById, 
+    saveGeneratedSite, 
+    getGeneratedSiteById, 
+    updateSiteDeployment,
     logProcessing, 
     createOrUpdateUser,
     getUserById 
@@ -173,7 +175,7 @@ router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent
         }
 
         const fileInfo = {
-            id: Date.now().toString(),
+            id: randomUUID(),
             originalName: uploadedFile.originalname,
             filename: uploadedFile.filename,
             path: uploadedFile.path,
@@ -343,17 +345,32 @@ router.post('/generate',
         const siteName = `${structuredData.personalInfo.name} CV Landing Page`;
         const repoName = `${structuredData.personalInfo.name.toLowerCase().replace(/\s+/g, '-')}-cv-site`;
         
-        const siteRecord = await createUserSite({
+        const siteRecord = await saveGeneratedSite({
+            id: randomUUID(),
             user_id: req.user.userId,
-            site_name: siteName,
-            repo_name: repoName,
-            github_url: '', // Will be updated when published to GitHub
-            cv_data: structuredData
+            name: siteName,
+            structured_data: structuredData,
+            html_content: null, // Will be set after generation
+            css_content: null,  // Will be set after generation
+            folder_path: null   // Will be set after generation
         });
 
         // Generate the landing page using the site ID as directory name
-        const outputDir = path.join(__dirname, '../generated', req.user.userId, siteRecord.id);
+        const outputDir = path.join(__dirname, '../generated', req.user.userId, siteRecord.id.replace(/-/g, ''));
         const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
+        
+        // Update the site record with generated content and paths
+        const htmlContent = fs.existsSync(path.join(outputDir, 'index.html')) ? 
+            fs.readFileSync(path.join(outputDir, 'index.html'), 'utf8') : null;
+        const cssContent = fs.existsSync(path.join(outputDir, 'styles.css')) ? 
+            fs.readFileSync(path.join(outputDir, 'styles.css'), 'utf8') : null;
+        
+        await updateSiteDeployment(siteRecord.id, {
+            deployment_status: 'generated',
+            html_content: htmlContent,
+            css_content: cssContent,
+            folder_path: outputDir
+        });
         
         const generationTime = Date.now() - generationStartTime;
         recordLandingPageGeneration(req.user.userId, generationTime);
@@ -421,7 +438,7 @@ router.get('/preview',
         console.log('Loading preview for ID:', previewId);
 
         // Get site info from database
-        const siteRecord = await getUserSiteById(previewId);
+        const siteRecord = await getGeneratedSiteById(previewId);
         
         if (!siteRecord) {
             return res.status(404).json({ error: 'Preview not found' });
@@ -431,7 +448,7 @@ router.get('/preview',
         const generationInfo = {
             id: siteRecord.id,
             userId: siteRecord.user_id,
-            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id),
+            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id.replace(/-/g, '')),
             personName: siteRecord.cv_data?.personalInfo?.name || 'User'
         };
 
@@ -513,7 +530,7 @@ router.get('/static',
         console.log('Serving static file:', file, 'for preview:', previewId);
 
         // Get site info from database
-        const siteRecord = await getUserSiteById(previewId);
+        const siteRecord = await getGeneratedSiteById(previewId);
         
         if (!siteRecord) {
             return res.status(404).json({ error: 'Preview not found' });
@@ -521,7 +538,7 @@ router.get('/static',
         
         // Build generation info for compatibility
         const generationInfo = {
-            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id)
+            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id.replace(/-/g, ''))
         };
 
         const filePath = path.join(generationInfo.outputDir, file);
@@ -600,7 +617,7 @@ router.get('/download',
         console.log('Download requested for generation:', generationId);
 
         // Get site info from database
-        const siteRecord = await getUserSiteById(generationId);
+        const siteRecord = await getGeneratedSiteById(generationId);
         
         if (!siteRecord) {
             return res.status(404).json({ error: 'Generation not found' });
@@ -610,7 +627,7 @@ router.get('/download',
         const generationInfo = {
             id: siteRecord.id,
             userId: siteRecord.user_id,
-            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id),
+            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id.replace(/-/g, '')),
             personName: siteRecord.cv_data?.personalInfo?.name || 'User'
         };
 

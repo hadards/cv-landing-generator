@@ -1,197 +1,282 @@
-// File: database/services.js - Database service functions
+// UNIFIED Database Services - ONE file for all database operations
+// NO DUPLICATES - uses ONLY user_sites table (not generated_sites)
 const { query } = require('./index');
 
 // ==========================================
 // USER SERVICES
 // ==========================================
 
-// Create or get user (for auth integration)
 const createOrUpdateUser = async (userData) => {
-    const { email, name, google_id, github_username, github_token } = userData;
+    const { email, name, google_id, github_username, github_token, profile_picture_url } = userData;
     
     try {
-        // Try to find existing user by email or google_id
-        let findQuery = 'SELECT * FROM users WHERE email = $1';
-        let findParams = [email];
-        
-        if (google_id) {
-            findQuery = 'SELECT * FROM users WHERE google_id = $1 OR email = $2';
-            findParams = [google_id, email];
-        }
-        
-        const existing = await query(findQuery, findParams);
+        const existing = await query(
+            'SELECT * FROM users WHERE email = $1 OR google_id = $2', 
+            [email, google_id]
+        );
         
         if (existing.rows.length > 0) {
-            // Update existing user
-            const updateQuery = `
+            const result = await query(`
                 UPDATE users 
-                SET name = $1, google_id = $2, github_username = $3, github_token = $4, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $5
+                SET name = $1, google_id = $2, github_username = $3, 
+                    github_token = $4, profile_picture_url = $5, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $6
                 RETURNING *;
-            `;
-            const result = await query(updateQuery, [name, google_id, github_username, github_token, existing.rows[0].id]);
+            `, [name, google_id, github_username, github_token, profile_picture_url, existing.rows[0].id]);
             return result.rows[0];
         } else {
-            // Create new user
-            const insertQuery = `
-                INSERT INTO users (email, name, google_id, github_username, github_token)
-                VALUES ($1, $2, $3, $4, $5)
+            const result = await query(`
+                INSERT INTO users (email, name, google_id, github_username, github_token, profile_picture_url)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *;
-            `;
-            const result = await query(insertQuery, [email, name, google_id, github_username, github_token]);
+            `, [email, name, google_id, github_username, github_token, profile_picture_url]);
             return result.rows[0];
         }
     } catch (error) {
-        console.error('Error creating/updating user:', error.message);
+        console.error('Error creating/updating user:', error);
         throw error;
     }
 };
 
-// Get user by ID
 const getUserById = async (userId) => {
     try {
         const result = await query('SELECT * FROM users WHERE id = $1', [userId]);
         return result.rows[0] || null;
     } catch (error) {
-        console.error('Error getting user by ID:', error.message);
+        console.error('Error getting user by ID:', error);
         throw error;
     }
 };
 
 // ==========================================
-// CV PROCESSING SERVICES  
+// FILE UPLOAD SERVICES (replaces uploadedFiles Map)
 // ==========================================
 
-// Log processing operation
-const logProcessing = async (userId, operationType, status, errorMessage = null, processingTime = null) => {
-    try {
-        const insertQuery = `
-            INSERT INTO processing_logs (user_id, operation_type, status, error_message, processing_time_ms)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING *;
-        `;
-        const result = await query(insertQuery, [userId, operationType, status, errorMessage, processingTime]);
-        return result.rows[0];
-    } catch (error) {
-        console.error('Error logging processing:', error.message);
-        throw error;
-    }
-};
-
-// ==========================================
-// USER SITES SERVICES (replaces generatedLandingPages Map)
-// ==========================================
-
-// Create a new site record
-const createUserSite = async (siteData) => {
-    const { 
-        user_id, 
-        site_name, 
-        repo_name = 'cv-landing-page', 
-        github_url = '', 
-        pages_url = null,
-        cv_data = null 
-    } = siteData;
+const saveFileUpload = async (fileData) => {
+    const { id, user_id, filename, filepath, file_size, mime_type, extracted_text, structured_data } = fileData;
     
     try {
-        const insertQuery = `
-            INSERT INTO user_sites (user_id, site_name, repo_name, github_url, pages_url, cv_data, deployment_status)
-            VALUES ($1, $2, $3, $4, $5, $6, 'generated')
+        const result = await query(`
+            INSERT INTO file_uploads (id, user_id, filename, filepath, file_size, mime_type, extracted_text, structured_data)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *;
-        `;
-        const result = await query(insertQuery, [user_id, site_name, repo_name, github_url, pages_url, cv_data]);
-        return result.rows[0];
+        `, [id, user_id, filename, filepath, file_size, mime_type, extracted_text, JSON.stringify(structured_data)]);
+        
+        const file = result.rows[0];
+        if (file.structured_data && typeof file.structured_data === 'string') {
+            file.structured_data = JSON.parse(file.structured_data);
+        }
+        return file;
     } catch (error) {
-        console.error('Error creating user site:', error.message);
+        console.error('Error saving file upload:', error);
         throw error;
     }
 };
 
-// Get user site by ID
-const getUserSiteById = async (siteId) => {
+const getFileUploadById = async (fileId) => {
+    try {
+        const result = await query('SELECT * FROM file_uploads WHERE id = $1', [fileId]);
+        if (result.rows.length === 0) return null;
+        
+        const file = result.rows[0];
+        if (file.structured_data && typeof file.structured_data === 'string') {
+            file.structured_data = JSON.parse(file.structured_data);
+        }
+        return file;
+    } catch (error) {
+        console.error('Error getting file upload:', error);
+        throw error;
+    }
+};
+
+const updateFileUpload = async (fileId, updates) => {
+    const { extracted_text, structured_data } = updates;
+    
+    try {
+        const result = await query(`
+            UPDATE file_uploads 
+            SET extracted_text = $1, structured_data = $2
+            WHERE id = $3
+            RETURNING *;
+        `, [extracted_text, JSON.stringify(structured_data), fileId]);
+        
+        const file = result.rows[0];
+        if (file && file.structured_data && typeof file.structured_data === 'string') {
+            file.structured_data = JSON.parse(file.structured_data);
+        }
+        return file;
+    } catch (error) {
+        console.error('Error updating file upload:', error);
+        throw error;
+    }
+};
+
+// ==========================================
+// SITE SERVICES (replaces generatedLandingPages Map)
+// USES ONLY user_sites table - NO generated_sites table
+// ==========================================
+
+const saveGeneratedSite = async (siteData) => {
+    const { id, user_id, name, structured_data, html_content, css_content, folder_path } = siteData;
+    
+    try {
+        // Generate repo_name from site name
+        const repo_name = name ? 
+            name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-cv-site' :
+            'cv-landing-page';
+            
+        const result = await query(`
+            INSERT INTO user_sites 
+            (id, user_id, site_name, repo_name, github_url, cv_data, html_content, css_content, folder_path, deployment_status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'generated')
+            RETURNING *;
+        `, [id, user_id, name, repo_name, '', JSON.stringify(structured_data), html_content, css_content, folder_path]);
+        
+        const site = result.rows[0];
+        if (site.cv_data && typeof site.cv_data === 'string') {
+            site.cv_data = JSON.parse(site.cv_data);
+        }
+        return site;
+    } catch (error) {
+        console.error('Error saving generated site:', error);
+        throw error;
+    }
+};
+
+const getGeneratedSiteById = async (siteId) => {
     try {
         const result = await query('SELECT * FROM user_sites WHERE id = $1', [siteId]);
-        if (result.rows.length > 0) {
-            const site = result.rows[0];
-            // Parse JSON cv_data if it's a string
-            if (site.cv_data && typeof site.cv_data === 'string') {
-                try {
-                    site.cv_data = JSON.parse(site.cv_data);
-                } catch (parseError) {
-                    console.warn('Failed to parse cv_data JSON:', parseError.message);
-                    site.cv_data = null;
-                }
-            }
-            return site;
+        if (result.rows.length === 0) return null;
+        
+        const site = result.rows[0];
+        if (site.cv_data && typeof site.cv_data === 'string') {
+            site.cv_data = JSON.parse(site.cv_data);
         }
-        return null;
+        return site;
     } catch (error) {
-        console.error('Error getting user site:', error.message);
+        console.error('Error getting generated site:', error);
         throw error;
     }
 };
 
-// Get all sites for a user
+const updateSiteDeployment = async (siteId, deploymentData) => {
+    const { github_url, pages_url, deployment_status, html_content, css_content, folder_path } = deploymentData;
+    
+    try {
+        const result = await query(`
+            UPDATE user_sites 
+            SET github_url = COALESCE($1, github_url), 
+                pages_url = COALESCE($2, pages_url), 
+                deployment_status = COALESCE($3, deployment_status),
+                html_content = COALESCE($4, html_content),
+                css_content = COALESCE($5, css_content),
+                folder_path = COALESCE($6, folder_path),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $7
+            RETURNING *;
+        `, [github_url, pages_url, deployment_status, html_content, css_content, folder_path, siteId]);
+        
+        const site = result.rows[0];
+        if (site && site.cv_data && typeof site.cv_data === 'string') {
+            site.cv_data = JSON.parse(site.cv_data);
+        }
+        return site;
+    } catch (error) {
+        console.error('Error updating site deployment:', error);
+        throw error;
+    }
+};
+
 const getUserSites = async (userId) => {
     try {
-        const result = await query('SELECT * FROM user_sites WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+        const result = await query(
+            'SELECT * FROM user_sites WHERE user_id = $1 ORDER BY created_at DESC', 
+            [userId]
+        );
+        
         return result.rows.map(site => {
             if (site.cv_data && typeof site.cv_data === 'string') {
                 try {
                     site.cv_data = JSON.parse(site.cv_data);
-                } catch (parseError) {
-                    console.warn('Failed to parse cv_data JSON:', parseError.message);
-                    site.cv_data = null;
+                } catch (e) {
+                    site.cv_data = {};
                 }
             }
             return site;
         });
     } catch (error) {
-        console.error('Error getting user sites:', error.message);
+        console.error('Error getting user sites:', error);
         throw error;
     }
 };
 
-// Update site deployment status
-const updateSiteDeployment = async (siteId, status, githubUrl = null, pagesUrl = null) => {
+// ==========================================
+// LOGGING SERVICES
+// ==========================================
+
+const logProcessing = async (userId, operation, status, errorMessage = null) => {
     try {
-        const updateQuery = `
-            UPDATE user_sites 
-            SET deployment_status = $1, github_url = COALESCE($2, github_url), pages_url = COALESCE($3, pages_url), updated_at = CURRENT_TIMESTAMP
-            WHERE id = $4
+        const result = await query(`
+            INSERT INTO processing_logs (user_id, operation, status, error_message)
+            VALUES ($1, $2, $3, $4)
             RETURNING *;
-        `;
-        const result = await query(updateQuery, [status, githubUrl, pagesUrl, siteId]);
+        `, [userId, operation, status, errorMessage]);
         return result.rows[0];
     } catch (error) {
-        console.error('Error updating site deployment:', error.message);
-        throw error;
+        console.error('Error logging processing:', error);
+        // Don't throw here to avoid breaking main operations
     }
 };
 
 // ==========================================
-// TEMPORARY FILE TRACKING (replaces uploadedFiles Map)
+// USER PREFERENCES (keep existing functionality)
 // ==========================================
 
-// For now, we can use processing_logs to track file operations
-// Later we might create a dedicated uploaded_files table if needed
-
-const logFileOperation = async (userId, filename, status, metadata = {}) => {
-    return await logProcessing(userId, 'file_upload', status, null, null);
+const getUserPreferences = async (userId) => {
+    try {
+        const result = await query('SELECT * FROM user_preferences WHERE user_id = $1', [userId]);
+        return result.rows[0] || null;
+    } catch (error) {
+        console.error('Error getting user preferences:', error);
+        throw error;
+    }
 };
 
+const createDefaultPreferences = async (userId) => {
+    try {
+        const result = await query(`
+            INSERT INTO user_preferences (user_id, vercel_enabled, email_notifications, theme_preference)
+            VALUES ($1, FALSE, TRUE, 'professional')
+            RETURNING *;
+        `, [userId]);
+        return result.rows[0];
+    } catch (error) {
+        console.error('Error creating default preferences:', error);
+        throw error;
+    }
+};
+
+// Export all functions - ONE UNIFIED SERVICE
 module.exports = {
     // User services
     createOrUpdateUser,
     getUserById,
     
-    // Processing logs
-    logProcessing,
-    logFileOperation,
+    // File upload services (replaces uploadedFiles Map)
+    saveFileUpload,
+    getFileUploadById,
+    updateFileUpload,
     
-    // Sites services  
-    createUserSite,
-    getUserSiteById,
+    // Site services (replaces generatedLandingPages Map - uses user_sites table ONLY)
+    saveGeneratedSite,
+    getGeneratedSiteById,
+    updateSiteDeployment,
     getUserSites,
-    updateSiteDeployment
+    
+    // User preferences (existing functionality)
+    getUserPreferences,
+    createDefaultPreferences,
+    
+    // Logging
+    logProcessing
 };

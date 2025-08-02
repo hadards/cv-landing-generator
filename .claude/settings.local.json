@@ -4,7 +4,8 @@
       "Bash(rm:*)",
       "Bash(node:*)",
       "Bash(npm install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(TASKKILL.EXE:*)"
     ],
     "deny": []
   }

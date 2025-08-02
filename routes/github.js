@@ -525,7 +525,9 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
         }
 
         // Construct path to generated site files
-        const siteDirectory = path.join(__dirname, '..', 'generated', req.user.id, jobId);
+        // Remove hyphens from jobId for directory name (matches cvController.js pattern)
+        const sanitizedJobId = jobId.replace(/-/g, '');
+        const siteDirectory = path.join(__dirname, '..', 'generated', req.user.id, sanitizedJobId);
         const publishStartTime = Date.now();
         
         // Check if site directory exists

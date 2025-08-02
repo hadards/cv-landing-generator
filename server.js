@@ -160,6 +160,33 @@ app.use('*', (req, res) => {
     });
 });
 
+// Simple database connection test
+async function testDatabaseConnection() {
+    if (!process.env.DATABASE_URL) {
+        console.log('No DATABASE_URL configured - using in-memory storage');
+        return false;
+    }
+    
+    try {
+        const { testConnection } = require('./database/index');
+        const result = await testConnection();
+        
+        if (result.success) {
+            console.log(`Database connected: ${result.message}`);
+            if (result.tables && result.tables.length > 0) {
+                console.log(`Existing tables: ${result.tables.join(', ')}`);
+            }
+            return true;
+        } else {
+            console.warn(`Database connection failed: ${result.message}`);
+            return false;
+        }
+    } catch (error) {
+        console.warn('Database test failed:', error.message);
+        return false;
+    }
+}
+
 // Start server
 const server = app.listen(PORT, async () => {
     console.log(`=================================`);
@@ -178,6 +205,12 @@ const server = app.listen(PORT, async () => {
     console.log(`Rate Limiting: ${limiter.max} requests per ${limiter.windowMs/1000/60} minutes`);
     console.log(`=================================`);
     
+    // Test database connection
+    const dbConnected = await testDatabaseConnection();
+    if (!dbConnected) {
+        console.warn('Database not available - run schema.sql in Supabase to set up tables');
+    }
+    
     // Start file cleanup manager
     try {
         await fileCleanupManager.start();
@@ -185,6 +218,10 @@ const server = app.listen(PORT, async () => {
     } catch (error) {
         console.error('Failed to start file cleanup manager:', error);
     }
+    
+    console.log('=================================');
+    console.log('Server startup completed');
+    console.log('=================================');
 });
 
 // Graceful shutdown handlers
