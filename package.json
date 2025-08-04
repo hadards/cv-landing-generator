@@ -6,15 +6,10 @@
     "dev:frontend": "cd frontend && ng serve",
     "dev:api": "node server/server.js",
     "build": "cd frontend && ng build",
-    "test:llm": "node test-llm-clients.js",
-    "test:gemini": "node test-llm-clients.js gemini",
-    "test:ollama": "node test-llm-clients.js ollama",
     "db:test": "node -e \"require('dotenv').config(); const db = require('./server/database/index'); db.testConnection().then(r => console.log(r)).then(() => db.closeDatabase());\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@langchain/community": "^0.3.49",
-    "@langchain/core": "^0.3.66",
     "@octokit/rest": "^22.0.0",
     "@supabase/supabase-js": "^2.52.1",
     "archiver": "^7.0.1",
@@ -26,7 +21,6 @@
     "google-auth-library": "^10.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "langchain": "^0.3.30",
     "mammoth": "^1.9.1",
     "multer": "^2.0.1",
     "ollama": "^0.5.16",

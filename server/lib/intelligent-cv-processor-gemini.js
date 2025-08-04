@@ -241,13 +241,8 @@ REQUIRED JSON FORMAT:
             const response = result.response;
             const text = response.text();
             
-            // Extract JSON from response
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error('No JSON found in response');
-            }
-            
-            const parsed = JSON.parse(jsonMatch[0]);
+            // Extract and parse JSON from response
+            const parsed = this.parseAIJsonResponse(text);
             
             if (!parsed.name || parsed.name.trim().length === 0) {
                 throw new Error('Name extraction failed');
@@ -338,12 +333,7 @@ REQUIRED JSON FORMAT:
             const response = result.response;
             const text = response.text();
             
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error('No JSON found in response');
-            }
-            
-            const parsed = JSON.parse(jsonMatch[0]);
+            const parsed = this.parseAIJsonResponse(text);
             
             return {
                 experience: Array.isArray(parsed.experience) ? parsed.experience : [],
@@ -441,9 +431,17 @@ REQUIRED JSON FORMAT:
             const response = result.response;
             const text = response.text();
             
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                console.log('No JSON found, returning empty structure');
+            try {
+                const parsed = this.parseAIJsonResponse(text);
+                return {
+                    projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+                    certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
+                    awards: Array.isArray(parsed.awards) ? parsed.awards : [],
+                    publications: Array.isArray(parsed.publications) ? parsed.publications : [],
+                    volunteer: Array.isArray(parsed.volunteer) ? parsed.volunteer : []
+                };
+            } catch (parseError) {
+                console.log('No valid JSON found, returning empty structure');
                 return {
                     projects: [],
                     certifications: [],
@@ -452,16 +450,6 @@ REQUIRED JSON FORMAT:
                     volunteer: []
                 };
             }
-            
-            const parsed = JSON.parse(jsonMatch[0]);
-            
-            return {
-                projects: Array.isArray(parsed.projects) ? parsed.projects : [],
-                certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
-                awards: Array.isArray(parsed.awards) ? parsed.awards : [],
-                publications: Array.isArray(parsed.publications) ? parsed.publications : [],
-                volunteer: Array.isArray(parsed.volunteer) ? parsed.volunteer : []
-            };
             
         } catch (error) {
             console.error('Additional data extraction failed:', error);
@@ -495,6 +483,46 @@ REQUIRED JSON FORMAT:
         });
         
         return Math.min(score, 1.0); // Cap at 1.0
+    }
+
+    /**
+     * Sanitize JSON string from AI response to fix common issues
+     */
+    sanitizeJsonString(jsonString) {
+        return jsonString
+            .replace(/\\\\/g, '\\')  // Fix double-escaped backslashes
+            .replace(/\\"/g, '"')    // Fix escaped quotes properly
+            .replace(/\\n/g, '\n')   // Fix newlines
+            .replace(/\\t/g, '\t')   // Fix tabs
+            .replace(/[\x00-\x1F\x7F]/g, ' ') // Replace control characters with spaces
+            .replace(/\n\s*\n/g, '\n') // Remove empty lines
+            .trim();
+    }
+
+    /**
+     * Parse JSON with error handling and sanitization
+     */
+    parseAIJsonResponse(text) {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error('No JSON found in response');
+        }
+        
+        try {
+            // First try parsing as-is
+            return JSON.parse(jsonMatch[0]);
+        } catch (error) {
+            console.log('JSON parse failed, attempting sanitization...');
+            try {
+                // Try with sanitization
+                const sanitized = this.sanitizeJsonString(jsonMatch[0]);
+                return JSON.parse(sanitized);
+            } catch (sanitizationError) {
+                console.error('Original JSON:', jsonMatch[0].substring(0, 500) + '...');
+                console.error('Sanitized JSON:', this.sanitizeJsonString(jsonMatch[0]).substring(0, 500) + '...');
+                throw new Error(`JSON parsing failed even after sanitization: ${sanitizationError.message}`);
+            }
+        }
     }
 
     /**
