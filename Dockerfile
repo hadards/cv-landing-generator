@@ -45,4 +45,4 @@ USER nodejs
 EXPOSE 3000
 
 # Start server
-CMD ["node", "server.js"]
+CMD ["node", "server/server.js"]
