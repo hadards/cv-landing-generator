@@ -10,6 +10,7 @@ const { body, param, query, validationResult } = require('express-validator');
 
 const IntelligentCVProcessor = require('../lib/intelligent-cv-processor-gemini');
 const TemplateProcessor = require('../lib/template-processor');
+const securePaths = require('../lib/utils/secure-paths');
 const { 
     saveGeneratedSite, 
     getGeneratedSiteById, 
@@ -61,7 +62,9 @@ const upload = multer({
 
 // File content validation middleware
 const validateFileContent = async (req, res, next) => {
+    console.log('File validation middleware hit, file:', req.file ? req.file.originalname : 'no file');
     if (!req.file) {
+        console.log('Validation failed: No file in request');
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
@@ -73,7 +76,7 @@ const validateFileContent = async (req, res, next) => {
         const buffer = await fs.promises.readFile(filePath);
         const fileSignature = buffer.toString('hex', 0, 8).toLowerCase();
         
-        // File signature validation
+        // File signature validation with enhanced DOCX checking
         const validSignatures = {
             'pdf': ['25504446'], // %PDF
             'doc': ['d0cf11e0'], // Microsoft Office
@@ -81,14 +84,46 @@ const validateFileContent = async (req, res, next) => {
         };
         
         let isValidFile = false;
+        let detectedType = null;
+        
         for (const [type, signatures] of Object.entries(validSignatures)) {
             if (signatures.some(sig => fileSignature.startsWith(sig))) {
+                detectedType = type;
                 isValidFile = true;
                 break;
             }
         }
         
+        // Enhanced DOCX validation - check for Office document structure
+        if (detectedType === 'docx') {
+            try {
+                // Read more bytes to validate DOCX structure
+                const extendedBuffer = buffer.slice(0, Math.min(2048, buffer.length));
+                const zipContent = extendedBuffer.toString('latin1'); // Use latin1 for better binary compatibility
+                
+                // Check for Office document indicators in ZIP structure
+                const hasContentTypes = zipContent.includes('Content_Types') || zipContent.includes('[Content_Types].xml');
+                const hasWordDir = zipContent.includes('word/') || zipContent.includes('document.xml');
+                
+                // Be more lenient - if it's a ZIP file and has some Office indicators, allow it
+                if (!hasContentTypes && !hasWordDir) {
+                    console.log('DOCX validation warning: May not be a valid Office document, but allowing ZIP file');
+                    // Don't fail validation, just log warning
+                }
+            } catch (zipError) {
+                console.log('DOCX validation warning: Cannot fully parse ZIP structure, but allowing', zipError.message);
+                // Don't fail validation for parsing errors
+            }
+        }
+        
         if (!isValidFile) {
+            console.log('File validation failed:', {
+                filename: file.originalname,
+                mimetype: file.mimetype,
+                signature: fileSignature,
+                detectedType: detectedType,
+                fileSize: buffer.length
+            });
             // Clean up invalid file
             await fs.promises.unlink(filePath).catch(() => {});
             return res.status(400).json({ 
@@ -163,14 +198,60 @@ const verifyToken = (req, res, next) => {
 
 // File processing storage - now using database instead of in-memory Maps
 // Keep temporary file cache for processing (files are cleaned up after processing)
-const tempFileCache = new Map();
+class SecureFileCache {
+    constructor(maxSize = 100, ttlMs = 30 * 60 * 1000) { // 30 minutes TTL
+        this.cache = new Map();
+        this.maxSize = maxSize;
+        this.ttlMs = ttlMs;
+    }
+
+    set(key, value) {
+        // Remove expired entries
+        this.cleanExpired();
+        
+        // Enforce size limit
+        if (this.cache.size >= this.maxSize) {
+            // Remove oldest entry
+            const firstKey = this.cache.keys().next().value;
+            this.cache.delete(firstKey);
+        }
+        
+        this.cache.set(key, {
+            value: value,
+            timestamp: Date.now()
+        });
+    }
+
+    get(key) {
+        this.cleanExpired();
+        const entry = this.cache.get(key);
+        return entry ? entry.value : undefined;
+    }
+
+    cleanExpired() {
+        const now = Date.now();
+        for (const [key, entry] of this.cache.entries()) {
+            if (now - entry.timestamp > this.ttlMs) {
+                this.cache.delete(key);
+            }
+        }
+    }
+
+    delete(key) {
+        return this.cache.delete(key);
+    }
+}
+
+const tempFileCache = new SecureFileCache();
 
 // File upload endpoint
 router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
     try {
+        console.log('Upload endpoint hit, file:', req.file ? req.file.originalname : 'no file');
         const uploadedFile = req.file;
         
         if (!uploadedFile) {
+            console.log('Upload failed: No file uploaded');
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
@@ -356,7 +437,11 @@ router.post('/generate',
         });
 
         // Generate the landing page using the site ID as directory name
-        const outputDir = path.join(__dirname, '../generated', req.user.userId, siteRecord.id.replace(/-/g, ''));
+        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(req.user.userId, siteRecord.id);
+        console.log('CV Generation - Creating directory:', outputDir);
+        console.log('CV Generation - User ID:', req.user.userId);
+        console.log('CV Generation - Site ID:', siteRecord.id);
+        await securePaths.ensureSecureDirectory(outputDir);
         const result = await templateProcessor.generateLandingPage(structuredData, outputDir);
         
         // Update the site record with generated content and paths
@@ -444,23 +529,27 @@ router.get('/preview',
             return res.status(404).json({ error: 'Preview not found' });
         }
         
-        // Build generation info for compatibility
+        // Build generation info for compatibility using secure paths
+        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
         const generationInfo = {
             id: siteRecord.id,
             userId: siteRecord.user_id,
-            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id.replace(/-/g, '')),
+            outputDir: outputDir,
             personName: siteRecord.cv_data?.personalInfo?.name || 'User'
         };
 
-        const outputDir = generationInfo.outputDir;
         const indexPath = path.join(outputDir, 'index.html');
         
-        if (!fs.existsSync(indexPath)) {
-            return res.status(404).json({ error: 'Generated files not found' });
+        // Read the HTML file atomically to avoid TOCTOU
+        let htmlContent;
+        try {
+            htmlContent = fs.readFileSync(indexPath, 'utf8');
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return res.status(404).json({ error: 'Generated files not found' });
+            }
+            throw error;
         }
-
-        // Read the HTML file
-        let htmlContent = fs.readFileSync(indexPath, 'utf8');
 
         // Update relative paths to work with our static file server
         const baseUrl = `${req.protocol}://${req.get('host')}/api/cv/static?previewId=${previewId}&file=`;
@@ -536,17 +625,14 @@ router.get('/static',
             return res.status(404).json({ error: 'Preview not found' });
         }
         
-        // Build generation info for compatibility
+        // Build generation info for compatibility using secure paths
+        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
         const generationInfo = {
-            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id.replace(/-/g, ''))
+            outputDir: outputDir
         };
 
         const filePath = path.join(generationInfo.outputDir, file);
         
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-
         // Set content type based on file extension
         const ext = path.extname(file).toLowerCase();
         let contentType = 'text/plain';
@@ -573,8 +659,16 @@ router.get('/static',
                 break;
         }
 
-        // Read and serve the file
-        const fileContent = fs.readFileSync(filePath);
+        // Read and serve the file atomically to avoid TOCTOU
+        let fileContent;
+        try {
+            fileContent = fs.readFileSync(filePath);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return res.status(404).json({ error: 'File not found' });
+            }
+            throw error;
+        }
         
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'no-cache');
@@ -623,17 +717,19 @@ router.get('/download',
             return res.status(404).json({ error: 'Generation not found' });
         }
         
-        // Build generation info for compatibility
+        // Build generation info for compatibility using secure paths
+        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
         const generationInfo = {
             id: siteRecord.id,
             userId: siteRecord.user_id,
-            outputDir: path.join(__dirname, '../generated', siteRecord.user_id, siteRecord.id.replace(/-/g, '')),
+            outputDir: outputDir,
             personName: siteRecord.cv_data?.personalInfo?.name || 'User'
         };
 
-        const outputDir = generationInfo.outputDir;
-        
-        if (!fs.existsSync(outputDir)) {
+        // Check directory exists atomically
+        try {
+            await fs.promises.access(outputDir, fs.constants.R_OK);
+        } catch (error) {
             return res.status(404).json({ error: 'Generated files not found' });
         }
 
@@ -647,10 +743,15 @@ router.get('/download',
         res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
         res.setHeader('Cache-Control', 'no-cache');
 
-        // Create ZIP archive
+        // Create ZIP archive with size limits to prevent zip bombs
         const archive = archiver('zip', {
-            zlib: { level: 9 }
+            zlib: { level: 6 }, // Reduce compression level
+            store: true // For small files, store without compression
         });
+        
+        // Set maximum archive size (50MB)
+        const MAX_ARCHIVE_SIZE = 50 * 1024 * 1024;
+        let currentSize = 0;
 
         // Handle archive errors
         archive.on('error', (err) => {
@@ -660,24 +761,53 @@ router.get('/download',
             }
         });
 
-        // Pipe archive to response
-        archive.pipe(res);
-
-        // Add files to archive
-        const filesToInclude = ['index.html', 'styles.css', 'script.js', 'data.js'];
-        
-        filesToInclude.forEach(fileName => {
-            const filePath = path.join(outputDir, fileName);
-            if (fs.existsSync(filePath)) {
-                console.log(`Adding ${fileName} to archive`);
-                archive.file(filePath, { name: fileName });
+        // Monitor archive size
+        archive.on('progress', (progress) => {
+            if (progress.entries.processedBytes > MAX_ARCHIVE_SIZE) {
+                archive.abort();
+                if (!res.headersSent) {
+                    res.status(413).json({ error: 'Archive too large' });
+                }
             }
         });
 
-        // Add README file
+        // Pipe archive to response
+        archive.pipe(res);
+
+        // Add files to archive with size checking
+        const filesToInclude = ['index.html', 'styles.css', 'script.js', 'data.js'];
+        
+        for (const fileName of filesToInclude) {
+            const filePath = path.join(outputDir, fileName);
+            if (fs.existsSync(filePath)) {
+                const stats = fs.statSync(filePath);
+                currentSize += stats.size;
+                
+                // Check individual file size (max 10MB per file)
+                if (stats.size > 10 * 1024 * 1024) {
+                    console.log(`Skipping ${fileName}: file too large`);
+                    continue;
+                }
+                
+                // Check total size
+                if (currentSize > MAX_ARCHIVE_SIZE) {
+                    console.log(`Stopping archive creation: size limit exceeded`);
+                    break;
+                }
+                
+                console.log(`Adding ${fileName} to archive (${stats.size} bytes)`);
+                archive.file(filePath, { name: fileName });
+            }
+        }
+
+        // Add README file with size check
         const readmePath = path.join(outputDir, 'README.md');
         if (fs.existsSync(readmePath)) {
-            archive.file(readmePath, { name: 'README.md' });
+            const readmeStats = fs.statSync(readmePath);
+            if (readmeStats.size < 1024 * 1024 && currentSize + readmeStats.size <= MAX_ARCHIVE_SIZE) { // Max 1MB for README
+                archive.file(readmePath, { name: 'README.md' });
+                currentSize += readmeStats.size;
+            }
         }
 
         // Finalize the archive

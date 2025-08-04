@@ -5,6 +5,7 @@ const { createOrUpdateUser, getUserById, updateSiteDeployment } = require('../da
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs').promises;
+const securePaths = require('../lib/utils/secure-paths');
 const { recordGitHubConnection, recordGitHubPublish } = require('../middleware/monitoring');
 
 const router = express.Router();
@@ -178,7 +179,8 @@ router.get('/callback', async (req, res) => {
         }
 
         // Redirect to the appropriate frontend page with success message
-        res.redirect(`http://localhost:4200${returnUrl}?connected=true`);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+        res.redirect(`${frontendUrl}${returnUrl}?connected=true`);
     } catch (error) {
         console.error('GitHub OAuth error:', error);
         // Try to get return URL from state for error redirect too
@@ -191,14 +193,15 @@ router.get('/callback', async (req, res) => {
                 // Ignore parse error, use default
             }
         }
-        res.redirect(`http://localhost:4200${errorReturnUrl}?error=` + encodeURIComponent(error.message));
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+        res.redirect(`${frontendUrl}${errorReturnUrl}?error=` + encodeURIComponent('Authentication failed'));
     }
 });
 
 // Check GitHub connection status
 router.get('/status', authenticateUser, async (req, res) => {
     console.log('GitHub status check route hit');
-    console.log('User:', req.user);
+    console.log('User ID:', req.user.id);
     console.log('GitHub token exists:', !!req.user.github_token);
     console.log('GitHub username:', req.user.github_username);
     
@@ -272,7 +275,7 @@ router.get('/repositories', authenticateUser, async (req, res) => {
         res.json(reposWithPages);
     } catch (error) {
         console.error('List repositories error:', error);
-        res.status(500).json({ error: 'Failed to fetch repositories: ' + error.message });
+        res.status(500).json({ error: 'Unable to fetch repositories' });
     }
 });
 
@@ -313,7 +316,7 @@ router.post('/create-repository', authenticateUser, async (req, res) => {
         }
 
         res.status(500).json({ 
-            error: 'Failed to create repository: ' + error.message 
+            error: 'Unable to create repository' 
         });
     }
 });
@@ -448,7 +451,7 @@ router.post('/upload-test-files', authenticateUser, async (req, res) => {
     } catch (error) {
         console.error('Upload test files error:', error);
         res.status(500).json({ 
-            error: 'Failed to upload test files: ' + error.message 
+            error: 'Unable to upload test files' 
         });
     }
 });
@@ -506,7 +509,7 @@ router.post('/enable-pages', authenticateUser, async (req, res) => {
     } catch (error) {
         console.error('Enable GitHub Pages error:', error);
         res.status(500).json({ 
-            error: 'Failed to enable GitHub Pages: ' + error.message 
+            error: 'Unable to enable GitHub Pages' 
         });
     }
 });
@@ -524,16 +527,22 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
             return res.status(400).json({ error: 'Job ID is required' });
         }
 
-        // Construct path to generated site files
-        // Remove hyphens from jobId for directory name (matches cvController.js pattern)
-        const sanitizedJobId = jobId.replace(/-/g, '');
-        const siteDirectory = path.join(__dirname, '..', 'generated', req.user.id, sanitizedJobId);
+        // Construct path to generated site files using secure paths
+        // Use userId to match the CV generation process
+        const userId = req.user.userId || req.user.id;
+        const { siteDir: siteDirectory } = securePaths.getSecureGeneratedPath(userId, jobId);
         const publishStartTime = Date.now();
+        
+        console.log('GitHub publish - Looking for site directory:', siteDirectory);
+        console.log('GitHub publish - User ID:', userId);
+        console.log('GitHub publish - Job ID:', jobId);
         
         // Check if site directory exists
         try {
             await fs.access(siteDirectory);
+            console.log('GitHub publish - Site directory found');
         } catch (error) {
+            console.log('GitHub publish - Site directory not found:', error.message);
             return res.status(404).json({ 
                 error: `Generated site files not found for job ID: ${jobId}. Please generate your CV first.` 
             });
@@ -676,7 +685,7 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
         }
         
         // Record GitHub publish metrics
-        recordGitHubPublish(req.user.id, publishTime, success);
+        recordGitHubPublish(userId, publishTime, success);
 
         res.json({
             success: true,
@@ -697,7 +706,7 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
     } catch (error) {
         console.error('Test push CV error:', error);
         res.status(500).json({ 
-            error: 'Failed to push CV site: ' + error.message 
+            error: 'Unable to publish CV site' 
         });
     }
 });
