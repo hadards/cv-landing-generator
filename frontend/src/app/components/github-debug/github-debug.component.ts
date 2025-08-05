@@ -6,6 +6,7 @@ import { AuthService } from '../../services/auth.service';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { GitHubPublishService, GitHubConnectionStatus, GitHubRepository, PublishResult } from '../../services/github-publish.service';
+import { environment } from '../../../environments/environment';
 
 
 interface TestResult {
@@ -515,7 +516,7 @@ interface TestResult {
   `]
 })
 export class GitHubDebugComponent implements OnInit, OnDestroy {
-  private apiUrl = 'http://localhost:3000/api';
+  private apiUrl = environment.apiUrl;
   private subscriptions: Subscription[] = [];
   private hasInitialized = false;
 

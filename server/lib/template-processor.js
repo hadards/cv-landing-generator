@@ -476,7 +476,7 @@ const cvData = ${JSON.stringify(finalCvData, null, 2)};
             SUMMARY_EXCERPT: this.escapeHtml(summaryExcerpt),
             SKILLS_KEYWORDS: this.escapeHtml(skillsKeywords),
             YEARS_EXPERIENCE: yearsExperience.toString(),
-            SITE_URL: 'https://your-profile.vercel.app'
+            SITE_URL: process.env.SITE_URL || process.env.FRONTEND_URL || 'https://your-profile.vercel.app'
         };
     }
 

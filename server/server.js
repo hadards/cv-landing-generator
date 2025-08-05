@@ -88,7 +88,10 @@ app.use('/api/', limiter);
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-    : ['http://localhost:4200', 'http://localhost:3000'];
+    : [
+        process.env.FRONTEND_URL || 'http://localhost:4200',
+        process.env.API_URL || 'http://localhost:3000'
+    ];
 
 // Add GitHub OAuth domains for redirects
 const githubDomains = ['https://github.com', 'https://api.github.com'];

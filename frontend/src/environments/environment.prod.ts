@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://your-domain.com/api'
+  apiUrl: (globalThis as any)?.['env']?.['API_URL'] || 'https://your-domain.com/api'
 };

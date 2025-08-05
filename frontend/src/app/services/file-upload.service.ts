@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpEventType } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { AuthService } from './auth.service';
+import { environment } from '../../environments/environment';
 
 export interface FileInfo {
     id: string;
@@ -44,7 +45,7 @@ export interface UploadProgress {
     providedIn: 'root'
 })
 export class FileUploadService {
-    private apiUrl = 'http://localhost:3000/api';
+    private apiUrl = environment.apiUrl;
     private uploadProgressSubject = new BehaviorSubject<UploadProgress | null>(null);
 
     public uploadProgress$ = this.uploadProgressSubject.asObservable();
