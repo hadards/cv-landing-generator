@@ -13,42 +13,52 @@ import { environment } from '../../../environments/environment';
   imports: [CommonModule],
   template: `
     <!-- Modal Overlay -->
-    <div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+    <div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black bg-opacity-50">
       
       <!-- Modal Content -->
       <div class="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-hidden">
         
         <!-- Header -->
-        <div class="flex items-center justify-between p-4 border-b border-gray-200">
-          <h3 class="text-lg font-semibold text-gray-900">Website Preview</h3>
+        <div class="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 border-b border-gray-200 gap-3">
+          <div class="flex items-center justify-between md:justify-start">
+            <h3 class="text-base md:text-lg font-semibold text-gray-900">Website Preview</h3>
+            <!-- Close button for mobile -->
+            <button
+              (click)="closeModal()"
+              class="md:hidden p-2 text-gray-400 hover:text-gray-600 rounded">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
           
           <!-- Device Toggle -->
-          <div class="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+          <div class="flex items-center justify-center bg-gray-100 rounded-lg p-1">
             <button
               (click)="setDevice('desktop')"
               [class.bg-white]="device === 'desktop'"
               [class.shadow-sm]="device === 'desktop'"
-              class="px-3 py-1 rounded text-sm font-medium text-gray-700">
+              class="px-2 py-1 md:px-3 md:py-1 rounded text-xs md:text-sm font-medium text-gray-700">
               Desktop
             </button>
             <button
               (click)="setDevice('tablet')"
               [class.bg-white]="device === 'tablet'"
               [class.shadow-sm]="device === 'tablet'"
-              class="px-3 py-1 rounded text-sm font-medium text-gray-700">
+              class="px-2 py-1 md:px-3 md:py-1 rounded text-xs md:text-sm font-medium text-gray-700">
               Tablet
             </button>
             <button
               (click)="setDevice('mobile')"
               [class.bg-white]="device === 'mobile'"
               [class.shadow-sm]="device === 'mobile'"
-              class="px-3 py-1 rounded text-sm font-medium text-gray-700">
+              class="px-2 py-1 md:px-3 md:py-1 rounded text-xs md:text-sm font-medium text-gray-700">
               Mobile
             </button>
           </div>
           
-          <!-- Actions -->
-          <div class="flex items-center space-x-3">
+          <!-- Actions - Desktop only -->
+          <div class="hidden md:flex items-center space-x-3">
             <button
               (click)="downloadWebsite()"
               [disabled]="isDownloading"
@@ -104,20 +114,20 @@ import { environment } from '../../../environments/environment';
         </div>
         
         <!-- Footer -->
-        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200">
-          <div class="flex items-center justify-between">
-            <p class="text-sm text-gray-600">Your landing page is ready to download and deploy</p>
-            <div class="flex space-x-3">
+        <div class="px-3 py-3 md:px-4 md:py-3 bg-gray-50 border-t border-gray-200">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <p class="text-xs md:text-sm text-gray-600 text-center md:text-left">Your landing page is ready to download and deploy</p>
+            <div class="flex flex-col sm:flex-row gap-2 md:gap-3">
               <button 
                 (click)="closeModal()" 
-                class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                class="px-3 py-2 md:px-4 md:py-2 border border-gray-300 text-gray-700 text-xs md:text-sm font-medium rounded hover:bg-gray-50 order-2 sm:order-1">
                 Close
               </button>
               <button 
                 (click)="downloadWebsite()" 
                 [disabled]="isDownloading"
-                class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50">
-                Download Files
+                class="px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white text-xs md:text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50 order-1 sm:order-2">
+                {{ isDownloading ? 'Downloading...' : 'Download Files' }}
               </button>
             </div>
           </div>

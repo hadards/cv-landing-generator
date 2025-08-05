@@ -10,16 +10,16 @@ import { CVWizardComponent } from '../../components/cv-wizard/cv-wizard.componen
   standalone: true,
   imports: [CommonModule, CVWizardComponent],
   template: `
-    <div class="min-h-screen bg-gray-50 py-8">
-      <div class="container mx-auto px-4">
+    <div class="min-h-screen bg-gray-50 py-4 md:py-8">
+      <div class="container mx-auto px-4 md:px-6">
         <!-- Authentication Check -->
-        <div *ngIf="!isAuthenticated" class="max-w-md mx-auto">
-          <div class="card text-center">
-            <h1 class="text-2xl font-bold text-gray-900 mb-4">Login Required</h1>
-            <p class="text-gray-600 mb-6">
+        <div *ngIf="!isAuthenticated" class="max-w-sm md:max-w-md mx-auto">
+          <div class="card text-center p-4 md:p-6">
+            <h1 class="text-xl md:text-2xl font-bold text-gray-900 mb-3 md:mb-4">Login Required</h1>
+            <p class="text-sm md:text-base text-gray-600 mb-4 md:mb-6">
               Please log in to upload your CV and generate a landing page.
             </p>
-            <button (click)="goToLogin()" class="btn-primary">
+            <button (click)="goToLogin()" class="btn-primary w-full text-sm md:text-base py-2.5 md:py-3">
               Sign In to Continue
             </button>
           </div>

@@ -9,16 +9,16 @@ import { RouterModule } from '@angular/router';
   imports: [CommonModule, RouterModule],
   template: `
     <!-- Hero Section -->
-    <section class="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 py-20">
-      <div class="container">
+    <section class="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 md:py-20">
+      <div class="container px-4 md:px-6">
         <div class="max-w-4xl mx-auto text-center fade-in">
-          <div class="mb-8">
-            <div class="inline-flex items-center px-4 py-2 bg-white/80 rounded-full shadow-sm border border-gray-200 mb-6">
+          <div class="mb-6 md:mb-8">
+            <div class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-white/80 rounded-full shadow-sm border border-gray-200 mb-4 md:mb-6">
               <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-              <span class="text-sm font-medium text-gray-700">AI-Powered • Fast • Professional</span>
+              <span class="text-xs md:text-sm font-medium text-gray-700">AI-Powered • Fast • Professional</span>
             </div>
             
-            <h1 class="text-5xl md:text-6xl font-bold mb-6">
+            <h1 class="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight">
               <span class="text-gray-900">Transform Your</span>
               <br>
               <span class="text-gradient">CV into a Stunning</span>
@@ -26,13 +26,13 @@ import { RouterModule } from '@angular/router';
               <span class="text-gray-900">Landing Page</span>
             </h1>
             
-            <p class="text-xl text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
+            <p class="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-6 md:mb-8 leading-relaxed px-4">
               Upload your CV and let our AI create a beautiful, responsive landing page that showcases your professional story in minutes.
             </p>
             
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
-              <a routerLink="/upload" class="btn-primary text-lg px-8 py-4">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
+              <a routerLink="/upload" class="btn-primary text-base md:text-lg px-6 py-3 md:px-8 md:py-4 w-full sm:w-auto">
+                <svg class="w-4 h-4 md:w-5 md:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
                 Create Your Landing Page
@@ -41,18 +41,18 @@ import { RouterModule } from '@angular/router';
           </div>
           
           <!-- Stats -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mt-12 md:mt-16 px-4">
             <div class="text-center slide-up" style="animation-delay: 0.2s">
-              <div class="text-3xl font-bold text-gradient mb-2">< 5 min</div>
-              <div class="text-gray-600">Average Creation Time</div>
+              <div class="text-2xl md:text-3xl font-bold text-gradient mb-2">< 5 min</div>
+              <div class="text-sm md:text-base text-gray-600">Average Creation Time</div>
             </div>
             <div class="text-center slide-up" style="animation-delay: 0.4s">
-              <div class="text-3xl font-bold text-gradient mb-2">100%</div>
-              <div class="text-gray-600">Mobile Responsive</div>
+              <div class="text-2xl md:text-3xl font-bold text-gradient mb-2">100%</div>
+              <div class="text-sm md:text-base text-gray-600">Mobile Responsive</div>
             </div>
             <div class="text-center slide-up" style="animation-delay: 0.6s">
-              <div class="text-3xl font-bold text-gradient mb-2">AI</div>
-              <div class="text-gray-600">Powered Content</div>
+              <div class="text-2xl md:text-3xl font-bold text-gradient mb-2">AI</div>
+              <div class="text-sm md:text-base text-gray-600">Powered Content</div>
             </div>
           </div>
         </div>
@@ -67,56 +67,56 @@ import { RouterModule } from '@angular/router';
     </section>
 
     <!-- How It Works -->
-    <section class="section-padding bg-white">
-      <div class="container">
-        <div class="text-center mb-16 fade-in">
-          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+    <section class="py-12 md:py-20 bg-white">
+      <div class="container px-4 md:px-6">
+        <div class="text-center mb-12 md:mb-16 fade-in">
+          <h2 class="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 md:mb-4">
             How It Works
           </h2>
-          <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p class="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto px-4">
             Create your professional landing page in just three simple steps
           </p>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 lg:gap-12 px-4">
           <!-- Step 1 -->
-          <div class="text-center slide-up" style="animation-delay: 0.1s">
-            <div class="w-20 h-20 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="text-center slide-up px-4" style="animation-delay: 0.1s">
+            <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg">
+              <svg class="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                       d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
               </svg>
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-3">1. Upload Your CV</h3>
-            <p class="text-gray-600 leading-relaxed">
+            <h3 class="text-lg md:text-xl font-semibold text-gray-900 mb-2 md:mb-3">1. Upload Your CV</h3>
+            <p class="text-sm md:text-base text-gray-600 leading-relaxed">
               Simply drag and drop your CV file (PDF, DOC, or DOCX) and optionally add a professional photo
             </p>
           </div>
           
           <!-- Step 2 -->
-          <div class="text-center slide-up" style="animation-delay: 0.3s">
-            <div class="w-20 h-20 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="text-center slide-up px-4" style="animation-delay: 0.3s">
+            <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg">
+              <svg class="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                       d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a9 9 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
               </svg>
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-3">2. AI Magic</h3>
-            <p class="text-gray-600 leading-relaxed">
+            <h3 class="text-lg md:text-xl font-semibold text-gray-900 mb-2 md:mb-3">2. AI Magic</h3>
+            <p class="text-sm md:text-base text-gray-600 leading-relaxed">
               Our AI analyzes your CV and generates compelling, professional content optimized for web presentation
             </p>
           </div>
           
           <!-- Step 3 -->
-          <div class="text-center slide-up" style="animation-delay: 0.5s">
-            <div class="w-20 h-20 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="text-center slide-up px-4" style="animation-delay: 0.5s">
+            <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg">
+              <svg class="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                       d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"/>
               </svg>
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-3">3. Customize & Launch</h3>
-            <p class="text-gray-600 leading-relaxed">
+            <h3 class="text-lg md:text-xl font-semibold text-gray-900 mb-2 md:mb-3">3. Customize & Launch</h3>
+            <p class="text-sm md:text-base text-gray-600 leading-relaxed">
               Review, edit your content, and launch your beautiful, mobile-responsive professional landing page
             </p>
           </div>
@@ -125,18 +125,18 @@ import { RouterModule } from '@angular/router';
     </section>
 
     <!-- Features -->
-    <section class="section-padding bg-gray-50">
-      <div class="container">
-        <div class="text-center mb-16 fade-in">
-          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Why Choose CVLanding?
+    <section class="py-12 md:py-20 bg-gray-50">
+      <div class="container px-4 md:px-6">
+        <div class="text-center mb-12 md:mb-16 fade-in">
+          <h2 class="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 md:mb-4">
+            Why Choose CV to Landing?
           </h2>
-          <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p class="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto px-4">
             Professional features designed to make you stand out
           </p>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 px-4">
           <!-- Feature 1 -->
           <div class="card-compact text-center slide-up" style="animation-delay: 0.1s">
             <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
@@ -213,20 +213,20 @@ import { RouterModule } from '@angular/router';
     </section>
 
     <!-- CTA Section -->
-    <section class="section-padding bg-gradient-to-r from-blue-600 to-purple-600">
-      <div class="container">
+    <section class="py-12 md:py-20 bg-gradient-to-r from-blue-600 to-purple-600">
+      <div class="container px-4 md:px-6">
         <div class="text-center text-white fade-in">
-          <h2 class="text-3xl md:text-4xl font-bold mb-4">
+          <h2 class="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4 px-4">
             Ready to Create Your Professional Landing Page?
           </h2>
-          <p class="text-xl text-blue-100 max-w-2xl mx-auto mb-8">
+          <p class="text-lg md:text-xl text-blue-100 max-w-2xl mx-auto mb-6 md:mb-8 px-4">
             Join thousands of professionals who have transformed their careers with stunning landing pages
           </p>
-          <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <a routerLink="/upload" class="bg-white text-blue-600 hover:bg-gray-50 font-semibold py-4 px-8 rounded-lg transition-colors text-lg">
+          <div class="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
+            <a routerLink="/upload" class="bg-white text-blue-600 hover:bg-gray-50 font-semibold py-3 px-6 md:py-4 md:px-8 rounded-lg transition-colors text-base md:text-lg w-full sm:w-auto">
               Get Started Free
             </a>
-            <a routerLink="/login" class="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold py-4 px-8 rounded-lg transition-colors text-lg">
+            <a routerLink="/login" class="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold py-3 px-6 md:py-4 md:px-8 rounded-lg transition-colors text-base md:text-lg w-full sm:w-auto">
               Sign In
             </a>
           </div>
@@ -235,13 +235,13 @@ import { RouterModule } from '@angular/router';
     </section>
 
     <!-- Footer CTA -->
-    <section class="py-12 bg-white border-t border-gray-200">
-      <div class="container">
+    <section class="py-8 md:py-12 bg-white border-t border-gray-200">
+      <div class="container px-4 md:px-6">
         <div class="text-center">
-          <p class="text-gray-600 mb-4">
+          <p class="text-gray-600 mb-3 md:mb-4 text-sm md:text-base px-4">
             Transform your CV into a stunning landing page in minutes
           </p>
-          <a routerLink="/upload" class="btn-primary">
+          <a routerLink="/upload" class="btn-primary text-sm md:text-base px-4 py-2 md:px-6 md:py-3">
             Start Creating Now
           </a>
         </div>

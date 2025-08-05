@@ -142,14 +142,28 @@ header .bg-gradient {
   background: var(--gradient-warm);
   color: white;
   font-weight: 600;
-  padding: 0.875rem 2rem;
   border-radius: 12px;
   border: none;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: var(--shadow-warm);
-  font-size: 0.95rem;
   letter-spacing: 0.025em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  
+  /* Mobile first sizing - more compact */
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  min-height: 40px;
+  
+  /* Desktop sizing */
+  @media (min-width: 768px) {
+    padding: 0.875rem 2rem;
+    font-size: 0.95rem;
+    min-height: 44px;
+  }
 }
 
 .btn-primary:hover {
@@ -162,13 +176,27 @@ header .bg-gradient {
   background: white;
   color: var(--warm-orange);
   font-weight: 500;
-  padding: 0.875rem 2rem;
   border: 2px solid var(--warm-coral);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: var(--shadow-soft);
-  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  
+  /* Mobile first sizing - more compact */
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  min-height: 40px;
+  
+  /* Desktop sizing */
+  @media (min-width: 768px) {
+    padding: 0.875rem 2rem;
+    font-size: 0.95rem;
+    min-height: 44px;
+  }
 }
 
 .btn-secondary:hover {
@@ -182,12 +210,26 @@ header .bg-gradient {
   background: transparent;
   color: var(--text-medium);
   font-weight: 500;
-  padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  
+  /* Mobile first sizing - more compact */
+  padding: 0.5rem 0.875rem;
+  font-size: 0.825rem;
+  min-height: 36px;
+  
+  /* Desktop sizing */
+  @media (min-width: 768px) {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    min-height: 40px;
+  }
 }
 
 .btn-ghost:hover {
@@ -200,11 +242,18 @@ header .bg-gradient {
   background: white;
   border: 1px solid rgba(255, 138, 101, 0.15);
   border-radius: 20px;
-  padding: 2rem;
   box-shadow: var(--shadow-soft);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  
+  /* Mobile first padding */
+  padding: 1.25rem;
+  
+  /* Desktop padding */
+  @media (min-width: 768px) {
+    padding: 2rem;
+  }
 }
 
 .card::before {
@@ -226,12 +275,26 @@ header .bg-gradient {
 
 .card-compact {
   @extend .card;
-  padding: 1.5rem;
+  
+  /* Mobile first padding */
+  padding: 1rem;
+  
+  /* Desktop padding */
+  @media (min-width: 768px) {
+    padding: 1.5rem;
+  }
 }
 
 .card-minimal {
   @extend .card;
-  padding: 1rem;
+  
+  /* Mobile first padding */
+  padding: 0.75rem;
+  
+  /* Desktop padding */
+  @media (min-width: 768px) {
+    padding: 1rem;
+  }
 }
 
 /* Progress steps - Enhanced warm visualization */
@@ -430,15 +493,24 @@ header .bg-gradient {
 /* Input fields - Warm and accessible */
 .input-field, .textarea-field {
   width: 100%;
-  padding: 1rem 1.25rem;
   border: 2px solid rgba(255, 138, 101, 0.2);
   border-radius: 12px;
   background: white;
-  font-size: 0.95rem;
   transition: all 0.3s ease;
   outline: none;
   color: var(--text-dark);
   font-family: inherit;
+  min-height: 44px; /* Minimum touch target */
+  
+  /* Mobile first sizing */
+  padding: 0.875rem 1rem;
+  font-size: 0.9rem;
+  
+  /* Desktop sizing */
+  @media (min-width: 768px) {
+    padding: 1rem 1.25rem;
+    font-size: 0.95rem;
+  }
 }
 
 .input-field:focus, .textarea-field:focus {

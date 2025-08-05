@@ -216,7 +216,10 @@ class IntelligentCVProcessorGemini {
                                   error.message.includes('429') || 
                                   error.message.includes('overloaded') ||
                                   error.message.includes('network') ||
-                                  error.message.includes('timeout');
+                                  error.message.includes('timeout') ||
+                                  error.message.includes('fetch failed') ||
+                                  error.message.includes('ENOTFOUND') ||
+                                  error.code === 'ENOTFOUND';
                 
                 if (!isRetryable) {
                     throw error;
@@ -294,9 +297,14 @@ REQUIRED JSON FORMAT:
         } catch (error) {
             console.error('Basic info extraction failed:', error);
             
-            // If Gemini is completely unavailable, try to extract basic info using simple text parsing
-            if (error.message.includes('503') || error.message.includes('overloaded')) {
-                console.log('Gemini unavailable, attempting fallback extraction...');
+            // If Gemini is completely unavailable or network issue, try to extract basic info using simple text parsing
+            if (error.message.includes('503') || 
+                error.message.includes('overloaded') ||
+                error.message.includes('fetch failed') ||
+                error.message.includes('ENOTFOUND') ||
+                error.message.includes('network') ||
+                error.code === 'ENOTFOUND') {
+                console.log('Gemini/network unavailable, attempting fallback extraction...');
                 return this.extractBasicInfoFallback(cvText);
             }
             
@@ -386,9 +394,14 @@ REQUIRED JSON FORMAT:
         } catch (error) {
             console.error('Professional data extraction failed:', error);
             
-            // If Gemini is unavailable, use fallback
-            if (error.message.includes('503') || error.message.includes('overloaded')) {
-                console.log('Gemini unavailable, using professional data fallback...');
+            // If Gemini is unavailable or network issue, use fallback
+            if (error.message.includes('503') || 
+                error.message.includes('overloaded') ||
+                error.message.includes('fetch failed') ||
+                error.message.includes('ENOTFOUND') ||
+                error.message.includes('network') ||
+                error.code === 'ENOTFOUND') {
+                console.log('Gemini/network unavailable, using professional data fallback...');
                 return this.extractProfessionalFallback(cvText);
             }
             
