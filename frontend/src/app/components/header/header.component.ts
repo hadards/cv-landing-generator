@@ -9,14 +9,12 @@ import { AuthService, User } from '../../services/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <nav class="container">
-        <div class="flex justify-between items-center py-4">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50 h-20">
+      <nav class="container h-full">
+        <div class="flex justify-between items-center h-full px-4">
           <!-- Logo -->
           <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span class="text-white font-bold text-sm">CV</span>
-            </div>
+            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-48" style="width: auto; min-width: 192px;">
             <div>
               <h1 class="text-xl font-bold text-gray-900">CVLanding</h1>
               <p class="text-sm text-gray-600 -mt-1">Create • Share • Shine</p>
