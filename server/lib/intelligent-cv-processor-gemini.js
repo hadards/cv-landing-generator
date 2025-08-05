@@ -564,7 +564,7 @@ REQUIRED JSON FORMAT:
         }
         
         if (!name) {
-            name = 'CV Candidate'; // Default fallback
+            name = 'Professional'; // Default fallback
         }
         
         return {
