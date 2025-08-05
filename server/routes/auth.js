@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { createOrUpdateUser, getUserById } = require('../database/services');
 const { recordUserLogin, recordUserRegistration } = require('../middleware/monitoring');
+const { generateTokens } = require('../middleware/enhanced-auth');
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -34,11 +35,8 @@ router.post('/login', async (req, res) => {
                 verified: true
             };
 
-            const token = jwt.sign(
-                { userId: user.id, email: user.email },
-                process.env.JWT_SECRET,
-                { expiresIn: '7d' }
-            );
+            // Generate enhanced tokens
+            const tokens = generateTokens(user.id, user.email);
 
             // Record user login
             recordUserLogin(user.id);
@@ -46,7 +44,7 @@ router.post('/login', async (req, res) => {
             return res.status(200).json({
                 success: true,
                 user: user,
-                token: token,
+                ...tokens,
                 message: 'Development login successful'
             });
         }
@@ -79,11 +77,8 @@ router.post('/login', async (req, res) => {
                 verified: payload.email_verified
             };
 
-            const token = jwt.sign(
-                { userId: dbUser.id, email: dbUser.email },
-                process.env.JWT_SECRET,
-                { expiresIn: '7d' }
-            );
+            // Generate enhanced tokens
+            const tokens = generateTokens(dbUser.id, dbUser.email);
 
             // Record user login
             recordUserLogin(user.id);
@@ -91,7 +86,7 @@ router.post('/login', async (req, res) => {
             res.status(200).json({
                 success: true,
                 user: user,
-                token: token,
+                ...tokens,
                 message: 'Login successful'
             });
         } catch (googleError) {

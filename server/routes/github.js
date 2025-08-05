@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs').promises;
 const securePaths = require('../lib/utils/secure-paths');
 const { recordGitHubConnection, recordGitHubPublish } = require('../middleware/monitoring');
+const { authorizeResourceOwnership } = require('../middleware/authorization');
+const { verifyTokenEnhanced } = require('../middleware/enhanced-auth');
 
 const router = express.Router();
 
@@ -15,30 +17,7 @@ const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost:3001/api/github/callback';
 
-// Middleware to verify JWT and extract user
-const authenticateUser = async (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization;
-        
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: 'No token provided' });
-        }
-
-        const token = authHeader.substring(7);
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        const user = await getUserById(decoded.userId);
-        if (!user) {
-            return res.status(401).json({ error: 'User not found' });
-        }
-
-        req.user = user;
-        next();
-    } catch (error) {
-        console.error('Auth error:', error);
-        res.status(401).json({ error: 'Invalid token' });
-    }
-};
+// Note: Using enhanced JWT verification from middleware/enhanced-auth.js
 
 // GitHub OAuth initiation - modified to work with frontend redirect  
 router.get('/auth', (req, res) => {
@@ -199,7 +178,7 @@ router.get('/callback', async (req, res) => {
 });
 
 // Check GitHub connection status
-router.get('/status', authenticateUser, async (req, res) => {
+router.get('/status', verifyTokenEnhanced, async (req, res) => {
     console.log('GitHub status check route hit');
     console.log('User ID:', req.user.id);
     console.log('GitHub token exists:', !!req.user.github_token);
@@ -245,7 +224,7 @@ router.get('/status', authenticateUser, async (req, res) => {
 });
 
 // List user repositories
-router.get('/repositories', authenticateUser, async (req, res) => {
+router.get('/repositories', verifyTokenEnhanced, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -280,7 +259,7 @@ router.get('/repositories', authenticateUser, async (req, res) => {
 });
 
 // Create a new repository
-router.post('/create-repository', authenticateUser, async (req, res) => {
+router.post('/create-repository', verifyTokenEnhanced, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -322,7 +301,7 @@ router.post('/create-repository', authenticateUser, async (req, res) => {
 });
 
 // Upload test files to repository
-router.post('/upload-test-files', authenticateUser, async (req, res) => {
+router.post('/upload-test-files', verifyTokenEnhanced, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -457,7 +436,7 @@ router.post('/upload-test-files', authenticateUser, async (req, res) => {
 });
 
 // Enable GitHub Pages for repository
-router.post('/enable-pages', authenticateUser, async (req, res) => {
+router.post('/enable-pages', verifyTokenEnhanced, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -515,7 +494,7 @@ router.post('/enable-pages', authenticateUser, async (req, res) => {
 });
 
 // Test push CV site to GitHub repository (for debugging)
-router.post('/test-push-cv', authenticateUser, async (req, res) => {
+router.post('/test-push-cv', verifyTokenEnhanced, authorizeResourceOwnership('generated_site'), async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -712,7 +691,7 @@ router.post('/test-push-cv', authenticateUser, async (req, res) => {
 });
 
 // Check if GitHub Pages site is live
-router.post('/check-site-status', authenticateUser, async (req, res) => {
+router.post('/check-site-status', verifyTokenEnhanced, async (req, res) => {
     try {
         const { siteUrl } = req.body;
         

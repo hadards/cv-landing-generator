@@ -200,6 +200,37 @@ class IntelligentCVProcessorGemini {
     }
 
     /**
+     * Retry logic for API calls with exponential backoff
+     */
+    async retryWithBackoff(operation, maxRetries = 3) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                if (attempt === maxRetries) {
+                    throw error;
+                }
+                
+                // Check if it's a retryable error (503, 429, network issues)
+                const isRetryable = error.message.includes('503') || 
+                                  error.message.includes('429') || 
+                                  error.message.includes('overloaded') ||
+                                  error.message.includes('network') ||
+                                  error.message.includes('timeout');
+                
+                if (!isRetryable) {
+                    throw error;
+                }
+                
+                // Exponential backoff: 2s, 4s, 8s
+                const delay = Math.pow(2, attempt) * 1000;
+                console.log(`API call failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    /**
      * STEP 1: Extract basic personal information using Gemini
      */
     async extractBasicInfo(cvText) {
@@ -237,7 +268,9 @@ REQUIRED JSON FORMAT:
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
+            const result = await this.retryWithBackoff(async () => {
+                return await this.model.generateContent(prompt);
+            });
             const response = result.response;
             const text = response.text();
             
@@ -260,6 +293,13 @@ REQUIRED JSON FORMAT:
             
         } catch (error) {
             console.error('Basic info extraction failed:', error);
+            
+            // If Gemini is completely unavailable, try to extract basic info using simple text parsing
+            if (error.message.includes('503') || error.message.includes('overloaded')) {
+                console.log('Gemini unavailable, attempting fallback extraction...');
+                return this.extractBasicInfoFallback(cvText);
+            }
+            
             throw new Error('Failed to extract basic information: ' + error.message);
         }
     }
@@ -329,7 +369,9 @@ REQUIRED JSON FORMAT:
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
+            const result = await this.retryWithBackoff(async () => {
+                return await this.model.generateContent(prompt);
+            });
             const response = result.response;
             const text = response.text();
             
@@ -343,6 +385,13 @@ REQUIRED JSON FORMAT:
             
         } catch (error) {
             console.error('Professional data extraction failed:', error);
+            
+            // If Gemini is unavailable, use fallback
+            if (error.message.includes('503') || error.message.includes('overloaded')) {
+                console.log('Gemini unavailable, using professional data fallback...');
+                return this.extractProfessionalFallback(cvText);
+            }
+            
             throw new Error('Failed to extract professional data: ' + error.message);
         }
     }
@@ -427,7 +476,9 @@ REQUIRED JSON FORMAT:
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
+            const result = await this.retryWithBackoff(async () => {
+                return await this.model.generateContent(prompt);
+            });
             const response = result.response;
             const text = response.text();
             
@@ -454,7 +505,7 @@ REQUIRED JSON FORMAT:
         } catch (error) {
             console.error('Additional data extraction failed:', error);
             
-            // Return empty structure if parsing fails
+            // Return empty structure for additional data (not critical)
             return {
                 projects: [],
                 certifications: [],
@@ -463,6 +514,89 @@ REQUIRED JSON FORMAT:
                 volunteer: []
             };
         }
+    }
+
+    /**
+     * Fallback extraction when Gemini is unavailable - uses simple regex patterns
+     */
+    extractBasicInfoFallback(cvText) {
+        console.log('Using fallback extraction for basic information...');
+        
+        const text = cvText.toLowerCase();
+        const originalText = cvText;
+        
+        // Extract email using regex
+        const emailMatch = originalText.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+        const email = emailMatch ? emailMatch[0] : '';
+        
+        // Extract phone using regex
+        const phoneMatch = originalText.match(/(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/);
+        const phone = phoneMatch ? phoneMatch[0] : '';
+        
+        // Extract name (usually appears early in the document)
+        const lines = originalText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        let name = '';
+        
+        // Look for name in first few lines (avoid emails/phones)
+        for (let i = 0; i < Math.min(5, lines.length); i++) {
+            const line = lines[i];
+            if (!line.includes('@') && !line.match(/\d{3}/) && line.length > 5 && line.length < 50) {
+                // Simple heuristic: line with 2-4 words, proper case
+                const words = line.split(' ').filter(w => w.length > 1);
+                if (words.length >= 2 && words.length <= 4) {
+                    name = line;
+                    break;
+                }
+            }
+        }
+        
+        if (!name) {
+            name = 'CV Candidate'; // Default fallback
+        }
+        
+        return {
+            name: name,
+            email: email,
+            phone: phone,
+            location: '',
+            currentTitle: 'Professional',
+            summary: 'CV processing completed using fallback extraction due to service unavailability.',
+            aboutMe: 'This CV was processed using a fallback system. Please try again later for enhanced AI processing.'
+        };
+    }
+
+    /**
+     * Fallback for professional data extraction
+     */
+    extractProfessionalFallback(cvText) {
+        console.log('Using fallback extraction for professional data...');
+        
+        return {
+            experience: [{
+                title: 'Professional Experience',
+                company: 'See CV Document',
+                location: '',
+                startDate: '',
+                endDate: 'Present',
+                description: 'Experience details extracted from uploaded CV. Please try again later for detailed AI processing.',
+                achievements: [],
+                technologies: []
+            }],
+            skills: {
+                technical: ['Professional Skills'],
+                soft: ['Communication', 'Problem Solving'],
+                languages: ['English']
+            },
+            education: [{
+                degree: 'Education',
+                field: 'See CV Document',
+                institution: 'Educational Institution',
+                location: '',
+                graduationYear: '',
+                gpa: '',
+                honors: ''
+            }]
+        };
     }
 
     /**
@@ -489,14 +623,39 @@ REQUIRED JSON FORMAT:
      * Sanitize JSON string from AI response to fix common issues
      */
     sanitizeJsonString(jsonString) {
-        return jsonString
-            .replace(/\\\\/g, '\\')  // Fix double-escaped backslashes
-            .replace(/\\"/g, '"')    // Fix escaped quotes properly
-            .replace(/\\n/g, '\n')   // Fix newlines
-            .replace(/\\t/g, '\t')   // Fix tabs
-            .replace(/[\x00-\x1F\x7F]/g, ' ') // Replace control characters with spaces
-            .replace(/\n\s*\n/g, '\n') // Remove empty lines
-            .trim();
+        try {
+            // First, try to fix common escape sequence issues
+            let cleaned = jsonString
+                // Fix various types of malformed escape sequences
+                .replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '') // Remove invalid escape sequences
+                .replace(/\\\\/g, '\\')  // Fix double-escaped backslashes
+                .replace(/\\"/g, '"')    // Fix escaped quotes
+                .replace(/\\'/g, "'")    // Fix escaped single quotes
+                .replace(/\\n/g, '\n')   // Fix newlines
+                .replace(/\\r/g, '\r')   // Fix carriage returns
+                .replace(/\\t/g, '\t')   // Fix tabs
+                .replace(/\\b/g, '\b')   // Fix backspace
+                .replace(/\\f/g, '\f')   // Fix form feed
+                .replace(/[\x00-\x1F\x7F]/g, ' ') // Replace control characters with spaces
+                .replace(/\n\s*\n/g, '\n') // Remove empty lines
+                .trim();
+            
+            // Try to fix common JSON structure issues
+            cleaned = cleaned
+                .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+                .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // Quote unquoted keys
+                .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
+                .replace(/:\s*`([^`]*)`/g, ': "$1"'); // Replace backticks with double quotes
+            
+            return cleaned;
+        } catch (error) {
+            console.error('Error in sanitizeJsonString:', error);
+            // Fallback: just remove all backslashes and quotes issues
+            return jsonString
+                .replace(/\\/g, '')
+                .replace(/[\x00-\x1F\x7F]/g, ' ')
+                .trim();
+        }
     }
 
     /**
@@ -508,19 +667,67 @@ REQUIRED JSON FORMAT:
             throw new Error('No JSON found in response');
         }
         
-        try {
-            // First try parsing as-is
-            return JSON.parse(jsonMatch[0]);
-        } catch (error) {
-            console.log('JSON parse failed, attempting sanitization...');
+        let jsonString = jsonMatch[0];
+        
+        // Try multiple parsing strategies
+        const strategies = [
+            // Strategy 1: Parse as-is
+            () => JSON.parse(jsonString),
+            
+            // Strategy 2: Basic sanitization
+            () => JSON.parse(this.sanitizeJsonString(jsonString)),
+            
+            // Strategy 3: Aggressive cleaning - remove all escape sequences
+            () => {
+                const aggressive = jsonString
+                    .replace(/\\./g, ' ') // Remove all escape sequences
+                    .replace(/[\x00-\x1F\x7F]/g, ' ') // Remove control chars
+                    .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+                    .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3'); // Quote keys
+                return JSON.parse(aggressive);
+            },
+            
+            // Strategy 4: Try to extract and rebuild JSON manually
+            () => {
+                const lines = jsonString.split('\n');
+                const cleanedLines = lines.map(line => {
+                    // Remove problematic characters and try to clean each line
+                    return line
+                        .replace(/\\[^"\\\/bfnrt]/g, '') // Remove invalid escapes
+                        .replace(/[\x00-\x1F\x7F]/g, ' ') // Control chars
+                        .trim();
+                }).filter(line => line.length > 0);
+                
+                return JSON.parse(cleanedLines.join('\n'));
+            }
+        ];
+        
+        for (let i = 0; i < strategies.length; i++) {
             try {
-                // Try with sanitization
-                const sanitized = this.sanitizeJsonString(jsonMatch[0]);
-                return JSON.parse(sanitized);
-            } catch (sanitizationError) {
-                console.error('Original JSON:', jsonMatch[0].substring(0, 500) + '...');
-                console.error('Sanitized JSON:', this.sanitizeJsonString(jsonMatch[0]).substring(0, 500) + '...');
-                throw new Error(`JSON parsing failed even after sanitization: ${sanitizationError.message}`);
+                const result = strategies[i]();
+                if (i > 0) {
+                    console.log(`JSON parsing succeeded with strategy ${i + 1}`);
+                }
+                return result;
+            } catch (error) {
+                console.log(`JSON parsing strategy ${i + 1} failed:`, error.message);
+                
+                if (i === strategies.length - 1) {
+                    // Last strategy failed, log debug info
+                    console.error('All JSON parsing strategies failed');
+                    console.error('Original JSON (first 1000 chars):', jsonString.substring(0, 1000));
+                    console.error('Error at position:', error.message.match(/position (\d+)/)?.[1]);
+                    
+                    // Try to show the problematic area
+                    const position = parseInt(error.message.match(/position (\d+)/)?.[1] || '0');
+                    if (position > 0) {
+                        const start = Math.max(0, position - 50);
+                        const end = Math.min(jsonString.length, position + 50);
+                        console.error('Problematic area:', jsonString.substring(start, end));
+                    }
+                    
+                    throw new Error(`JSON parsing failed with all strategies: ${error.message}`);
+                }
             }
         }
     }
@@ -543,7 +750,9 @@ REQUIRED JSON FORMAT:
      */
     async testConnection() {
         try {
-            const result = await this.model.generateContent("Say 'Hello from IntelligentCVProcessorGemini'");
+            const result = await this.retryWithBackoff(async () => {
+                return await this.model.generateContent("Say 'Hello from IntelligentCVProcessorGemini'");
+            });
             const response = result.response;
             const text = response.text();
             

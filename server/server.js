@@ -26,24 +26,36 @@ if (!process.env.JWT_SECRET) {
 }
 
 // Security middleware
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com"],
-            connectSrc: ["'self'", "https://api.github.com", "https://github.com"],
-            fontSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'self'"],
-            frameAncestors: ["'self'"],
-            formAction: ["'self'", "https://github.com"],
+// Apply CSP conditionally - skip for preview endpoints
+app.use((req, res, next) => {
+    // Skip CSP for preview and static file endpoints that need iframe embedding
+    const isPreviewRoute = req.path.includes('/api/cv/preview') || req.path.includes('/api/cv/static');
+    
+    if (isPreviewRoute) {
+        // Don't apply any CSP for preview routes to allow iframe embedding
+        return next();
+    }
+    
+    // Apply normal CSP for all other routes
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                styleSrc: ["'self'", "'unsafe-inline'"],
+                scriptSrc: ["'self'"],
+                imgSrc: ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com"],
+                connectSrc: ["'self'", "https://api.github.com", "https://github.com"],
+                fontSrc: ["'self'"],
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                frameSrc: ["'self'"],
+                frameAncestors: ["'self'"],
+                formAction: ["'self'", "https://github.com"],
+            },
         },
-    },
-    crossOriginEmbedderPolicy: false
-}));
+        crossOriginEmbedderPolicy: false
+    })(req, res, next);
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -125,12 +137,14 @@ const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const cvRoutes = require('./routes/cv');
 const githubRoutes = require('./routes/github');
+const sessionRoutes = require('./routes/session');
 
 // Mount routes
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cv', cvRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/session', sessionRoutes);
 
 // Error monitoring middleware
 app.use(errorMonitoring);

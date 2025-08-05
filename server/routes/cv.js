@@ -24,6 +24,8 @@ const {
     recordCVProcessing, 
     recordLandingPageGeneration 
 } = require('../middleware/monitoring');
+const { authorizeResourceOwnership, authorizeFileAccess } = require('../middleware/authorization');
+const { verifyTokenEnhanced } = require('../middleware/enhanced-auth');
 
 const router = express.Router();
 
@@ -178,21 +180,41 @@ const handleValidationErrors = (req, res, next) => {
     next();
 };
 
-// Middleware to verify JWT token
-const verifyToken = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
+// Note: Using enhanced JWT verification from middleware/enhanced-auth.js
 
-    const token = authHeader.substring(7);
-    
+// Enhanced authentication that accepts tokens from headers or query parameters
+const verifyTokenEnhancedWithQuery = async (req, res, next) => {
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (jwtError) {
-        return res.status(401).json({ error: 'Invalid token' });
+        // Check for token in Authorization header first
+        let token = null;
+        const authHeader = req.headers.authorization;
+        
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
+        } else if (req.query.token) {
+            // Allow token as query parameter for iframe requests
+            token = req.query.token;
+        }
+        
+        if (!token) {
+            return res.status(401).json({ 
+                error: 'Authentication required',
+                code: 'NO_TOKEN'
+            });
+        }
+        
+        // Create a temporary request object with the token in the header format
+        req.headers.authorization = `Bearer ${token}`;
+        
+        // Use the existing enhanced verification
+        return verifyTokenEnhanced(req, res, next);
+        
+    } catch (error) {
+        console.error('Token verification with query error:', error);
+        res.status(500).json({ 
+            error: 'Authentication verification failed',
+            code: 'AUTH_ERROR'
+        });
     }
 };
 
@@ -245,7 +267,7 @@ class SecureFileCache {
 const tempFileCache = new SecureFileCache();
 
 // File upload endpoint
-router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
+router.post('/upload', verifyTokenEnhanced, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
     try {
         console.log('Upload endpoint hit, file:', req.file ? req.file.originalname : 'no file');
         const uploadedFile = req.file;
@@ -290,7 +312,7 @@ router.post('/upload', verifyToken, upload.single('cvFile'), validateFileContent
 
 // Process CV file endpoint
 router.post('/process', 
-    verifyToken,
+    verifyTokenEnhanced,
     [
         body('fileId').isString().trim().isLength({ min: 1, max: 100 })
             .withMessage('Valid file ID is required'),
@@ -299,6 +321,7 @@ router.post('/process',
             .withMessage('Profile picture too large')
     ],
     handleValidationErrors,
+    authorizeFileAccess(tempFileCache),
     async (req, res) => {
     try {
         const { fileId } = req.body;
@@ -366,7 +389,10 @@ router.post('/process',
 });
 
 // Get file status endpoint
-router.get('/status', async (req, res) => {
+router.get('/status', 
+    verifyTokenEnhanced, 
+    authorizeFileAccess(tempFileCache), 
+    async (req, res) => {
     try {
         const { fileId } = req.query;
         
@@ -395,7 +421,7 @@ router.get('/status', async (req, res) => {
 
 // Generate landing page endpoint
 router.post('/generate', 
-    verifyToken,
+    verifyTokenEnhanced,
     [
         body('structuredData').isObject().withMessage('Structured CV data is required'),
         body('structuredData.personalInfo').isObject().withMessage('Personal information is required'),
@@ -498,13 +524,10 @@ router.get('/preview',
         query('previewId').isUUID().withMessage('Valid preview ID is required')
     ],
     handleValidationErrors,
+    verifyTokenEnhancedWithQuery,
+    authorizeResourceOwnership('generated_site'),
     async (req, res) => {
-    // Remove security headers to allow iframe embedding
-    res.removeHeader('Content-Security-Policy');
-    res.removeHeader('Content-Security-Policy-Report-Only');
-    res.removeHeader('X-Frame-Options');
-    
-    // Set CORS headers
+    // Set CORS headers for iframe embedding
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -552,22 +575,25 @@ router.get('/preview',
         }
 
         // Update relative paths to work with our static file server
+        // Include token in static file URLs for iframe access
+        const token = req.query.token || req.headers.authorization?.substring(7);
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
         const baseUrl = `${req.protocol}://${req.get('host')}/api/cv/static?previewId=${previewId}&file=`;
         
         // Replace CSS and JS references
         htmlContent = htmlContent.replace(
             /href="styles\.css"/g, 
-            `href="${baseUrl}styles.css"`
+            `href="${baseUrl}styles.css${tokenParam}"`
         );
         
         htmlContent = htmlContent.replace(
             /src="data\.js"/g, 
-            `src="${baseUrl}data.js"`
+            `src="${baseUrl}data.js${tokenParam}"`
         );
         
         htmlContent = htmlContent.replace(
             /src="script\.js"/g, 
-            `src="${baseUrl}script.js"`
+            `src="${baseUrl}script.js${tokenParam}"`
         );
 
         // Set proper headers
@@ -594,13 +620,10 @@ router.get('/static',
             .matches(/^[a-zA-Z0-9.-]+$/).withMessage('Invalid file name')
     ],
     handleValidationErrors,
+    verifyTokenEnhancedWithQuery,
+    authorizeResourceOwnership('generated_site'),
     async (req, res) => {
-    // Remove security headers to allow iframe embedding of static assets
-    res.removeHeader('Content-Security-Policy');
-    res.removeHeader('Content-Security-Policy-Report-Only');
-    res.removeHeader('X-Frame-Options');
-    
-    // Set CORS headers
+    // Set CORS headers for static asset serving
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -691,6 +714,8 @@ router.get('/download',
         query('generationId').isUUID().withMessage('Valid generation ID is required')
     ],
     handleValidationErrors,
+    verifyTokenEnhancedWithQuery,
+    authorizeResourceOwnership('generated_site'),
     async (req, res) => {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');

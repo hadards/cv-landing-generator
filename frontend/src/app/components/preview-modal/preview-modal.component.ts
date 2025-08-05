@@ -4,6 +4,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-preview-modal',
@@ -175,7 +176,10 @@ export class PreviewModalComponent implements OnInit, OnChanges {
   device: 'desktop' | 'tablet' | 'mobile' = 'desktop';
   isDownloading = false;
 
-  constructor(private sanitizer: DomSanitizer) {}
+  constructor(
+    private sanitizer: DomSanitizer,
+    private authService: AuthService
+  ) {}
 
   ngOnInit() {
     if (this.isOpen && this.generationId) {
@@ -198,8 +202,16 @@ export class PreviewModalComponent implements OnInit, OnChanges {
     this.isLoading = true;
     this.error = null;
 
-    // Create preview URL
-    const url = `http://localhost:3000/api/cv/preview?previewId=${this.generationId}`;
+    // Get authentication token
+    const token = this.authService.getToken();
+    if (!token) {
+      this.error = 'Authentication required';
+      this.isLoading = false;
+      return;
+    }
+
+    // Create preview URL with token as query parameter for iframe access
+    const url = `http://localhost:3000/api/cv/preview?previewId=${this.generationId}&token=${encodeURIComponent(token)}`;
     this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
 
     // Simulate loading time
@@ -247,8 +259,16 @@ export class PreviewModalComponent implements OnInit, OnChanges {
 
     this.isDownloading = true;
 
-    // Create download URL
-    const downloadUrl = `http://localhost:3000/api/cv/download?generationId=${this.generationId}`;
+    // Get authentication token
+    const token = this.authService.getToken();
+    if (!token) {
+      this.error = 'Authentication required for download';
+      this.isDownloading = false;
+      return;
+    }
+
+    // Create download URL with token
+    const downloadUrl = `http://localhost:3000/api/cv/download?generationId=${this.generationId}&token=${encodeURIComponent(token)}`;
     
     // Trigger download
     const link = document.createElement('a');
