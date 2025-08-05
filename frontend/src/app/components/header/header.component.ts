@@ -11,13 +11,15 @@ import { AuthService, User } from '../../services/auth.service';
   template: `
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50 h-20">
       <nav class="container h-full">
-        <div class="flex justify-between items-center h-full px-4">
+        <div class="flex justify-between items-center h-full px-2 md:px-4">
           <!-- Logo -->
-          <div class="flex items-center space-x-3">
-            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-48" style="width: auto; min-width: 192px;">
-            <div>
-              <h1 class="text-xl font-bold text-gray-900">CVLanding</h1>
-              <p class="text-sm text-gray-600 -mt-1">Create • Share • Shine</p>
+          <div class="flex items-center space-x-2 md:space-x-3 flex-1 min-w-0">
+            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-24 md:h-64 flex-shrink-0" style="width: auto; min-width: 96px;" 
+                 [style.min-width]="'min(96px, 20vw)'"
+                 [style.min-width.md]="'256px'">
+            <div class="min-w-0 flex-1">
+              <h1 class="text-lg md:text-xl font-bold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">CV to Landing</h1>
+              <p class="text-xs md:text-sm text-gray-600 -mt-1 whitespace-nowrap overflow-hidden text-ellipsis">Create • Share • Shine</p>
             </div>
           </div>
 
@@ -46,7 +48,7 @@ import { AuthService, User } from '../../services/auth.service';
           </div>
 
           <!-- User Actions -->
-          <div class="flex items-center space-x-3">
+          <div class="flex items-center space-x-1 md:space-x-3 flex-shrink-0">
             <!-- Mobile Menu Button -->
             <button *ngIf="!user" 
                     (click)="toggleMobileMenu()" 
@@ -65,7 +67,7 @@ import { AuthService, User } from '../../services/auth.service';
             </div>
 
             <!-- User Menu -->
-            <div *ngIf="user" class="flex items-center space-x-3">
+            <div *ngIf="user" class="flex items-center space-x-2 md:space-x-3 ml-auto">
               <div class="hidden md:flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-blue-500 shadow-md">
                   <img [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover">
