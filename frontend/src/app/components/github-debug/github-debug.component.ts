@@ -767,7 +767,7 @@ export class GitHubDebugComponent implements OnInit, OnDestroy {
       console.log('Could not load available jobs:', error);
       // For now, add some mock data for testing
       this.availableJobs = [
-        { id: '0875a3db-4f8b-4974-aaec-ffc910cfa50b', name: 'Hadar Dashty CV' },
+        { id: '0875a3db-4f8b-4974-aaec-ffc910cfa50b', name: 'Sample CV' },
         { id: 'df768255-3abe-42aa-b1a6-d8d8d5819548', name: 'Test CV' }
       ];
     }
