@@ -7,7 +7,14 @@
       "Bash(curl:*)",
       "Bash(TASKKILL.EXE:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm run dev:api:*)",
+      "Bash(taskkill:*)",
+      "Bash(TASKKILL /F /IM node.exe)",
+      "Bash(TASKKILL:*)",
+      "Bash(psql:*)",
+      "Bash(npm run dev:frontend:*)",
+      "Bash(del fix-database.js)"
     ],
     "deny": []
   }

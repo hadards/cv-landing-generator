@@ -157,9 +157,35 @@ router.get('/callback', async (req, res) => {
             }
         }
 
-        // Redirect to the appropriate frontend page with success message
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-        res.redirect(`${frontendUrl}${returnUrl}?connected=true`);
+        // Handle popup vs redirect mode
+        if (returnUrl === 'popup') {
+            // For popup mode, return a simple HTML page that closes the popup
+            res.send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>GitHub Authentication Success</title>
+                </head>
+                <body>
+                    <script>
+                        console.log('GitHub OAuth success - closing popup');
+                        // Send message to parent window if available
+                        if (window.opener) {
+                            window.opener.postMessage({ type: 'github-auth-success', connected: true }, '*');
+                        }
+                        // Close popup
+                        window.close();
+                        // Fallback if close doesn't work
+                        document.body.innerHTML = '<h2>✅ Authentication Successful!</h2><p>You can close this window.</p>';
+                    </script>
+                </body>
+                </html>
+            `);
+        } else {
+            // Regular redirect mode
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+            res.redirect(`${frontendUrl}${returnUrl}?connected=true`);
+        }
     } catch (error) {
         console.error('GitHub OAuth error:', error);
         // Try to get return URL from state for error redirect too
@@ -172,8 +198,35 @@ router.get('/callback', async (req, res) => {
                 // Ignore parse error, use default
             }
         }
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-        res.redirect(`${frontendUrl}${errorReturnUrl}?error=` + encodeURIComponent('Authentication failed'));
+        // Handle error for popup vs redirect mode
+        if (errorReturnUrl === 'popup') {
+            // For popup mode, return error page that closes popup
+            res.send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>GitHub Authentication Error</title>
+                </head>
+                <body>
+                    <script>
+                        console.error('GitHub OAuth error - closing popup');
+                        // Send error message to parent window if available
+                        if (window.opener) {
+                            window.opener.postMessage({ type: 'github-auth-error', error: 'Authentication failed' }, '*');
+                        }
+                        // Close popup
+                        window.close();
+                        // Fallback if close doesn't work
+                        document.body.innerHTML = '<h2>❌ Authentication Failed</h2><p>Please close this window and try again.</p>';
+                    </script>
+                </body>
+                </html>
+            `);
+        } else {
+            // Regular redirect mode
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+            res.redirect(`${frontendUrl}${errorReturnUrl}?error=` + encodeURIComponent('Authentication failed'));
+        }
     }
 });
 

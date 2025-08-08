@@ -179,8 +179,8 @@ export class GitHubPublishService {
       throw new Error('User ID is missing');
     }
     
-    // Default return URL to current path if not specified
-    const finalReturnUrl = returnUrl || window.location.pathname;
+    // Handle popup mode vs redirect mode
+    const finalReturnUrl = returnUrl === 'popup' ? 'popup' : (returnUrl || window.location.pathname);
     console.log('Final return URL:', finalReturnUrl);
     console.log('API URL:', this.apiUrl);
     console.log('User ID:', user.id);

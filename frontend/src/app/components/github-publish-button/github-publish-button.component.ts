@@ -315,12 +315,10 @@ export class GitHubPublishButtonComponent implements OnInit {
 
   connectGitHub() {
     console.log('=== GITHUB CONNECT DEBUG START ===');
-    console.log('connectGitHub called - storing job ID and redirecting to GitHub OAuth');
+    console.log('connectGitHub called - using popup OAuth flow');
     console.log('Current job ID:', this.jobId);
     console.log('Current user:', this.authService.getUser());
     console.log('Is logged in:', this.authService.isLoggedIn());
-    console.log('Current URL:', window.location.href);
-    console.log('Current pathname:', window.location.pathname);
     
     // Check if user is logged in first
     if (!this.authService.isLoggedIn()) {
@@ -347,33 +345,98 @@ export class GitHubPublishButtonComponent implements OnInit {
         console.log('Stored job ID for auto-publish:', this.jobId);
       }
       
-      // Pass current path as return URL so user comes back here after auth
       console.log('About to get GitHub auth URL...');
-      console.log('User ID for auth URL:', user.id);
-      
-      const authUrl = this.githubService.getGitHubAuthUrl(window.location.pathname);
+      const authUrl = this.githubService.getGitHubAuthUrl('popup');
       console.log('GitHub auth URL generated:', authUrl);
       
-      // Validate the URL before redirecting
+      // Validate the URL before opening popup
       if (!authUrl || !authUrl.startsWith('http')) {
         throw new Error('Invalid auth URL generated: ' + authUrl);
       }
       
-      console.log('About to redirect to GitHub OAuth...');
-      console.log('Using window.location.href assignment');
+      console.log('Opening GitHub OAuth popup...');
       
-      // Force immediate redirect
-      window.location.href = authUrl;
+      // Open popup instead of redirect
+      const popup = window.open(
+        authUrl,
+        'github-oauth',
+        'width=600,height=700,scrollbars=yes,resizable=yes'
+      );
       
-      console.log('Redirect command executed');
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups and try again.');
+      }
+      
+      // Listen for messages from popup
+      const messageListener = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        
+        console.log('Received message from popup:', event.data);
+        
+        if (event.data.type === 'github-auth-success') {
+          console.log('GitHub OAuth success message received');
+          window.removeEventListener('message', messageListener);
+          clearInterval(checkClosed);
+          popup.close();
+          this.handleOAuthSuccess();
+        } else if (event.data.type === 'github-auth-error') {
+          console.log('GitHub OAuth error message received:', event.data.error);
+          window.removeEventListener('message', messageListener);
+          clearInterval(checkClosed);
+          popup.close();
+          this.state = 'error';
+          this.errorMessage = event.data.error || 'GitHub authentication failed';
+          this.error.emit(this.errorMessage);
+        }
+      };
+      
+      window.addEventListener('message', messageListener);
+      
+      // Fallback: Listen for popup close (in case postMessage doesn't work)
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageListener);
+          console.log('GitHub OAuth popup closed (fallback detection)');
+          
+          // Check if auth was successful by refreshing user data
+          setTimeout(() => {
+            this.authService.refreshUserData().subscribe({
+              next: (response) => {
+                console.log('User data refreshed after popup close');
+                if (response.success && (response.user as any).github_username) {
+                  console.log('GitHub authentication successful!');
+                  this.handleOAuthSuccess();
+                } else {
+                  console.log('GitHub authentication appears to have failed or was cancelled');
+                  this.checkInitialState();
+                }
+              },
+              error: (error) => {
+                console.error('Failed to refresh user data after popup:', error);
+                this.checkInitialState();
+              }
+            });
+          }, 1000);
+        }
+      }, 1000);
+      
+      // Clean up interval and listener after 5 minutes to prevent memory leaks
+      setTimeout(() => {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', messageListener);
+        if (!popup.closed) {
+          popup.close();
+        }
+      }, 300000);
+      
+      console.log('Popup opened successfully');
       console.log('=== GITHUB CONNECT DEBUG END ===');
       
     } catch (err: any) {
       console.error('=== GITHUB CONNECT ERROR ===');
       console.error('Failed to connect to GitHub - Error details:', err);
-      console.error('Error type:', typeof err);
       console.error('Error message:', err.message);
-      console.error('Error stack:', err.stack);
       console.error('=== GITHUB CONNECT ERROR END ===');
       
       this.state = 'error';

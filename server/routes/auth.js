@@ -4,7 +4,6 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { createOrUpdateUser, getUserById } = require('../database/services');
 const { recordUserLogin, recordUserRegistration } = require('../middleware/monitoring');
-const { generateTokens } = require('../middleware/enhanced-auth');
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -35,8 +34,10 @@ router.post('/login', async (req, res) => {
                 verified: true
             };
 
-            // Generate enhanced tokens
+            // Generate JWT token using enhanced auth
+            const { generateTokens } = require('../middleware/enhanced-auth');
             const tokens = generateTokens(user.id, user.email);
+            const token = tokens.accessToken;
 
             // Record user login
             recordUserLogin(user.id);
@@ -44,7 +45,7 @@ router.post('/login', async (req, res) => {
             return res.status(200).json({
                 success: true,
                 user: user,
-                ...tokens,
+                token: token,
                 message: 'Development login successful'
             });
         }
@@ -77,8 +78,10 @@ router.post('/login', async (req, res) => {
                 verified: payload.email_verified
             };
 
-            // Generate enhanced tokens
+            // Generate JWT token using enhanced auth
+            const { generateTokens } = require('../middleware/enhanced-auth');
             const tokens = generateTokens(dbUser.id, dbUser.email);
+            const token = tokens.accessToken;
 
             // Record user login
             recordUserLogin(user.id);
@@ -86,7 +89,7 @@ router.post('/login', async (req, res) => {
             res.status(200).json({
                 success: true,
                 user: user,
-                ...tokens,
+                token: token,
                 message: 'Login successful'
             });
         } catch (googleError) {
