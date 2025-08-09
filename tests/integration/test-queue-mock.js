@@ -3,8 +3,8 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const { createOrUpdateUser } = require('../server/database/services');
-const { query, closeDatabase } = require('../server/database/index');
+const { createOrUpdateUser } = require('../../server/database/services');
+const { query, closeDatabase } = require('../../server/database/index');
 
 // Mock Queue Manager that doesn't call AI
 class MockQueueManager {

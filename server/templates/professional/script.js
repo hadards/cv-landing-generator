@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (headerName) headerName.textContent = cvData.personalInfo.name;
     if (emailLink) emailLink.href = `mailto:${cvData.personalInfo.email}`;
 
-    const currentTitle = cvData.experience.length > 0 ? cvData.experience[0].title : 'Professional';
+    const currentTitle = (cvData.experience && cvData.experience.length > 0) ? cvData.experience[0].title : 'Professional';
     if (headerTitle) headerTitle.textContent = currentTitle;
 
     // Update hero section
@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Render Experience
     const experienceContainer = document.getElementById('experience-container');
-    if (experienceContainer && cvData.experience.length > 0) {
+    if (experienceContainer && cvData.experience && cvData.experience.length > 0) {
         experienceContainer.innerHTML = cvData.experience.map(exp => {
             // Skip if this entry looks like a standalone "Key Achievements" section
             const titleLower = (exp.title || '').toLowerCase();
@@ -268,19 +268,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const softSkills = document.getElementById('soft-skills');
     const languages = document.getElementById('languages');
 
-    if (technicalSkills && cvData.skills.technical.length > 0) {
+    if (technicalSkills && cvData.skills && cvData.skills.technical && cvData.skills.technical.length > 0) {
         technicalSkills.innerHTML = cvData.skills.technical.map(skill =>
             `<span class="skill-tag">${skill}</span>`
         ).join('');
     }
 
-    if (softSkills && cvData.skills.soft.length > 0) {
+    if (softSkills && cvData.skills && cvData.skills.soft && cvData.skills.soft.length > 0) {
         softSkills.innerHTML = cvData.skills.soft.map(skill =>
             `<span class="skill-tag">${skill}</span>`
         ).join('');
     }
 
-    if (languages && cvData.skills.languages.length > 0) {
+    if (languages && cvData.skills && cvData.skills.languages && cvData.skills.languages.length > 0) {
         languages.innerHTML = cvData.skills.languages.map(lang =>
             `<span class="skill-tag">${lang}</span>`
         ).join('');
@@ -290,14 +290,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Hide skills section if no skills
-    if (cvData.skills.technical.length === 0 && cvData.skills.soft.length === 0) {
+    if ((!cvData.skills || !cvData.skills.technical || cvData.skills.technical.length === 0) && (!cvData.skills || !cvData.skills.soft || cvData.skills.soft.length === 0)) {
         const skillsSection = document.getElementById('skills-section');
         if (skillsSection) skillsSection.style.display = 'none';
     }
 
     // Render Education
     const educationContainer = document.getElementById('education-container');
-    if (educationContainer && cvData.education.length > 0) {
+    if (educationContainer && cvData.education && cvData.education.length > 0) {
         educationContainer.innerHTML = cvData.education.map(edu => `
             <div class="education-card">
                 <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-4">
@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Render Projects
     const projectsContainer = document.getElementById('projects-container');
-    if (projectsContainer && cvData.projects.length > 0) {
+    if (projectsContainer && cvData.projects && cvData.projects.length > 0) {
         projectsContainer.innerHTML = cvData.projects.map(project => `
             <div class="project-card">
                 <h3 class="text-xl font-semibold text-white mb-3">${project.name}</h3>
@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Render Certifications
     const certificationsContainer = document.getElementById('certifications-container');
-    if (certificationsContainer && cvData.certifications.length > 0) {
+    if (certificationsContainer && cvData.certifications && cvData.certifications.length > 0) {
         certificationsContainer.innerHTML = cvData.certifications.map(cert => `
             <div class="certification-card">
                 <h3 class="text-lg font-semibold text-white mb-2">${cert.name}</h3>

@@ -178,34 +178,27 @@ app.use((error, req, res, next) => {
 // 404 handler
 app.use('*', (req, res) => {
     res.status(404).json({
-        error: 'Not found',
-        message: `Route ${req.method} ${req.originalUrl} not found`
+        error: 'Not Found',
+        message: 'The requested resource was not found'
     });
 });
 
-// Simple database connection test
+// Test database connection
 async function testDatabaseConnection() {
     if (!process.env.DATABASE_URL) {
-        console.log('No DATABASE_URL configured - using in-memory storage');
         return false;
     }
     
     try {
-        const { testConnection } = require('./database/index');
-        const result = await testConnection();
+        const { query } = require('./database/index');
+        const result = await query('SELECT 1 as test');
         
-        if (result.success) {
-            console.log(`Database connected: ${result.message}`);
-            if (result.tables && result.tables.length > 0) {
-                console.log(`Existing tables: ${result.tables.join(', ')}`);
-            }
+        if (result && result.rows) {
             return true;
         } else {
-            console.warn(`Database connection failed: ${result.message}`);
             return false;
         }
     } catch (error) {
-        console.warn('Database test failed:', error.message);
         return false;
     }
 }
@@ -234,6 +227,8 @@ const server = app.listen(PORT, async () => {
     const dbConnected = await testDatabaseConnection();
     if (!dbConnected) {
         console.warn('Database not available - run schema.sql in Supabase to set up tables');
+    } else {
+        console.log('✓ Database connection verified');
     }
     
     // Start file cleanup manager

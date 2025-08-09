@@ -310,8 +310,8 @@ export class CVWizardComponent implements OnInit, OnDestroy {
                         this.cvData = jobStatus.structuredData;
                         this.populateCVSections();
                         this.wizardSteps[2].completed = true;
-                        this.nextStep();
-                        console.log('CV processing completed successfully');
+                        // Don't auto-advance - let user manually proceed to edit step
+                        console.log('CV processing completed successfully - ready for review');
                     } else if (jobStatus.status === 'failed') {
                         this.isProcessing = false;
                         alert('CV processing failed: ' + (jobStatus.error || 'Unknown error'));

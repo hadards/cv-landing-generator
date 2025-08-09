@@ -20,7 +20,11 @@
       "Bash(del test-queue-system.js test-queue-complete.js test-queue-endpoints.js test-frontend-integration.js fix-processing-jobs-table.js)",
       "Bash(mv:*)",
       "Bash(mkdir:*)",
-      "Bash(LLM_CLIENT_TYPE=ollama node tests/test-queue-mock.js)"
+      "Bash(LLM_CLIENT_TYPE=ollama node tests/test-queue-mock.js)",
+      "Bash(sed:*)",
+      "Bash(LLM_CLIENT_TYPE=ollama node test-queue-mock.js)",
+      "Bash(LLM_CLIENT_TYPE=ollama node tests/integration/test-queue-mock.js)",
+      "Bash(del test-processors.js)"
     ],
     "deny": []
   }

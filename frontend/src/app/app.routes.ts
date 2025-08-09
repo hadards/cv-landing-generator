@@ -19,14 +19,6 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/upload/upload.component').then(m => m.UploadComponent)
   },
   {
-    path: 'test',
-    loadComponent: () => import('./components/api-test/api-test.component').then(m => m.ApiTestComponent)
-  },
-  {
-    path: 'github-debug',
-    loadComponent: () => import('./components/github-debug/github-debug.component').then(m => m.GitHubDebugComponent)
-  },
-  {
     path: '**',
     redirectTo: '/home'
   }

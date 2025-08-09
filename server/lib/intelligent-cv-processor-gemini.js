@@ -1,15 +1,13 @@
 // Intelligent CV Processor with Gemini + Session Memory
-// Alternative to Ollama version for when Ollama is not available
+// Extends base processor with Gemini-specific implementations
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const CVSessionService = require('./services/cv-session-service');
-const TextCleaner = require('./utils/text-cleaner');
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
+const IntelligentCVProcessorBase = require('./intelligent-cv-processor-base');
 
-class IntelligentCVProcessorGemini {
+class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
     constructor(config = {}) {
+        super(); // Call parent constructor first
+        
         console.log('Initializing Intelligent CV Processor with Gemini...');
         
         // Initialize Gemini client
@@ -28,12 +26,16 @@ class IntelligentCVProcessorGemini {
             }
         });
         
-        // Initialize session service
-        this.sessionService = new CVSessionService();
-        
         console.log('LLM Client: Gemini (gemini-1.5-flash)');
         console.log('Session Memory: Enabled');
         console.log('Intelligent CV Processor ready');
+    }
+
+    /**
+     * Get processor name for metadata
+     */
+    getProcessorName() {
+        return 'gemini-intelligent';
     }
 
     /**

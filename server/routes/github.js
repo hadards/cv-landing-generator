@@ -21,17 +21,6 @@ const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost
 
 // GitHub OAuth initiation - modified to work with frontend redirect  
 router.get('/auth', (req, res) => {
-    console.log('=== GITHUB AUTH BACKEND START ===');
-    console.log('GitHub auth route hit');
-    console.log('Full URL:', req.url);
-    console.log('Query params:', req.query);
-    console.log('Method:', req.method);
-    console.log('Headers (selective):', {
-        'user-agent': req.headers['user-agent'],
-        'referer': req.headers['referer'],
-        'host': req.headers['host']
-    });
-    
     // Remove CSP headers for OAuth redirect
     res.removeHeader('Content-Security-Policy');
     res.removeHeader('Content-Security-Policy-Report-Only');
@@ -73,7 +62,6 @@ router.get('/auth', (req, res) => {
     
     console.log('Generated GitHub OAuth URL:', authUrl);
     console.log('About to redirect...');
-    console.log('=== GITHUB AUTH BACKEND END ===');
     
     res.redirect(authUrl);
 });
@@ -83,9 +71,6 @@ router.get('/callback', async (req, res) => {
     // Remove CSP headers for OAuth callback
     res.removeHeader('Content-Security-Policy');
     res.removeHeader('Content-Security-Policy-Report-Only');
-    console.log('GitHub callback route hit');
-    console.log('Query params:', req.query);
-    console.log('Headers:', req.headers);
     
     const { code, state } = req.query;
 
@@ -232,7 +217,6 @@ router.get('/callback', async (req, res) => {
 
 // Check GitHub connection status
 router.get('/status', verifyTokenEnhanced, async (req, res) => {
-    console.log('GitHub status check route hit');
     console.log('User ID:', req.user.id);
     console.log('GitHub token exists:', !!req.user.github_token);
     console.log('GitHub username:', req.user.github_username);
