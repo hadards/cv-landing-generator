@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CVProcessingService, ProcessingProgress } from '../../services/cv-processing.service';
 import { LandingPageService } from '../../services/landing-page.service';
+import { AuthService } from '../../services/auth.service';
 import { PreviewModalComponent } from '../preview-modal/preview-modal.component';
 import { GitHubPublishButtonComponent, PublishSuccess } from '../github-publish-button/github-publish-button.component';
 import { Subscription } from 'rxjs';
@@ -164,7 +165,8 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     constructor(
         private cvProcessingService: CVProcessingService,
-        private landingPageService: LandingPageService
+        private landingPageService: LandingPageService,
+        private authService: AuthService
     ) { }
 
     ngOnInit() {
@@ -174,6 +176,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     ngOnDestroy() {
         this.progressSubscription?.unsubscribe();
+        this.stopProcessingTimer();
     }
 
     // File handling methods
@@ -288,11 +291,22 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         this.profilePicture = null;
     }
 
+    // Progress tracking for CV processing
+    currentJobStatus: any = null;
+    queuePosition = 0;
+    estimatedWaitTime = 0;
+    processingStartTime: number | null = null;
+    processingElapsedTime = 0;
+    private processingTimer: any = null;
+
     // CV Processing methods
     async startProcessing() {
         if (!this.uploadedFile) return;
 
         this.isProcessing = true;
+        this.resetProcessingPhases();
+        this.processingStartTime = Date.now();
+        this.startProcessingTimer();
 
         try {
             // Use queue-based processing
@@ -300,26 +314,36 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
             console.log(`CV processing job ${jobId} queued, monitoring status...`);
 
-            // Subscribe to job status updates
+            // Subscribe to job status updates with enhanced progress tracking
             job.subscribe({
                 next: (jobStatus) => {
                     console.log('Job status update:', jobStatus);
+                    this.currentJobStatus = jobStatus;
+                    this.queuePosition = jobStatus.position || 0;
+                    this.estimatedWaitTime = jobStatus.estimatedWaitMinutes || 0;
+                    
+                    // Update processing phases based on job status
+                    this.updateProcessingPhases(jobStatus.status);
                     
                     if (jobStatus.status === 'completed' && jobStatus.structuredData) {
                         this.isProcessing = false;
                         this.cvData = jobStatus.structuredData;
                         this.populateCVSections();
                         this.wizardSteps[2].completed = true;
-                        // Don't auto-advance - let user manually proceed to edit step
+                        this.stopProcessingTimer();
+                        this.completeAllPhases();
                         console.log('CV processing completed successfully - ready for review');
                     } else if (jobStatus.status === 'failed') {
                         this.isProcessing = false;
+                        this.stopProcessingTimer();
+                        this.markPhasesAsError();
                         alert('CV processing failed: ' + (jobStatus.error || 'Unknown error'));
                     }
-                    // For 'queued' and 'processing' statuses, keep showing progress
                 },
                 error: (error) => {
                     this.isProcessing = false;
+                    this.stopProcessingTimer();
+                    this.markPhasesAsError();
                     console.error('Job monitoring error:', error);
                     alert('Failed to process CV: ' + error.message);
                 }
@@ -327,10 +351,106 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
         } catch (error) {
             this.isProcessing = false;
+            this.stopProcessingTimer();
+            this.markPhasesAsError();
             console.error('CV processing error:', error);
             const errorMessage = (error as any)?.message || 'Unknown error occurred';
             alert('Failed to start CV processing: ' + errorMessage);
         }
+    }
+
+    private resetProcessingPhases() {
+        this.processingPhases = [
+            { name: 'Uploading CV file', status: 'completed' },
+            { name: 'Joining processing queue', status: 'completed' },
+            { name: 'Waiting in queue', status: 'pending' },
+            { name: 'Extracting text content', status: 'pending' },
+            { name: 'Processing personal information', status: 'pending' },
+            { name: 'Generating professional summary', status: 'pending' },
+            { name: 'Processing work experience', status: 'pending' },
+            { name: 'Organizing skills and expertise', status: 'pending' },
+            { name: 'Processing education background', status: 'pending' },
+            { name: 'Extracting projects and achievements', status: 'pending' },
+            { name: 'Finding certifications', status: 'pending' }
+        ];
+    }
+
+    private updateProcessingPhases(status: string) {
+        switch (status) {
+            case 'queued':
+                this.processingPhases[2].status = 'processing';
+                break;
+            case 'processing':
+                this.processingPhases[2].status = 'completed';
+                // Mark text extraction and subsequent phases as processing
+                for (let i = 3; i < this.processingPhases.length; i++) {
+                    if (this.processingPhases[i].status === 'pending') {
+                        this.processingPhases[i].status = 'processing';
+                        break;
+                    }
+                }
+                break;
+        }
+    }
+
+    private completeAllPhases() {
+        this.processingPhases.forEach(phase => {
+            if (phase.status !== 'completed') {
+                phase.status = 'completed';
+            }
+        });
+    }
+
+    private markPhasesAsError() {
+        const currentPhaseIndex = this.processingPhases.findIndex(p => p.status === 'processing');
+        if (currentPhaseIndex >= 0) {
+            this.processingPhases[currentPhaseIndex].status = 'error';
+        }
+    }
+
+    private startProcessingTimer() {
+        this.processingTimer = setInterval(() => {
+            if (this.processingStartTime) {
+                this.processingElapsedTime = Math.floor((Date.now() - this.processingStartTime) / 1000);
+            }
+        }, 1000);
+    }
+
+    private stopProcessingTimer() {
+        if (this.processingTimer) {
+            clearInterval(this.processingTimer);
+            this.processingTimer = null;
+        }
+    }
+
+    formatElapsedTime(seconds: number): string {
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
+    }
+
+    getQueueStatusMessage(): string {
+        if (!this.currentJobStatus) return 'Initializing...';
+        
+        switch (this.currentJobStatus.status) {
+            case 'queued':
+                return `Position #${this.queuePosition} in queue • Est. wait: ${this.estimatedWaitTime}min`;
+            case 'processing':
+                return 'Processing your CV now...';
+            case 'completed':
+                return 'Processing completed successfully!';
+            case 'failed':
+                return 'Processing failed';
+            default:
+                return 'Unknown status';
+        }
+    }
+
+    getProgressPercentage(): number {
+        const completedPhases = this.processingPhases.filter(p => p.status === 'completed').length;
+        const totalPhases = this.processingPhases.length;
+        return Math.round((completedPhases / totalPhases) * 100);
     }
 
     populateCVSections() {
@@ -415,7 +535,14 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         this.isDownloading = true;
 
         try {
-            const downloadUrl = `${environment.apiUrl.replace('/api', '')}/api/cv/download?generationId=${this.generationId}`;
+            const token = this.authService.getToken();
+            if (!token) {
+                alert('Authentication required for download');
+                this.isDownloading = false;
+                return;
+            }
+
+            const downloadUrl = `${environment.apiUrl}/cv/download?generationId=${this.generationId}&token=${encodeURIComponent(token)}`;
 
             // Create download link
             const link = document.createElement('a');
@@ -430,7 +557,10 @@ export class CVWizardComponent implements OnInit, OnDestroy {
             console.error('Download failed:', error);
             alert('Download failed. Please try again.');
         } finally {
-            this.isDownloading = false;
+            // Reset downloading state after a short delay
+            setTimeout(() => {
+                this.isDownloading = false;
+            }, 2000);
         }
     }
 

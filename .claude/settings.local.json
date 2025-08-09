@@ -25,7 +25,12 @@
       "Bash(LLM_CLIENT_TYPE=ollama node test-queue-mock.js)",
       "Bash(LLM_CLIENT_TYPE=ollama node tests/integration/test-queue-mock.js)",
       "Bash(del test-processors.js)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm start)",
+      "Bash(npm run lint)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }
