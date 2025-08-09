@@ -49,8 +49,8 @@ async function testLiveAuth() {
     let testUserId = null;
     
     try {
-        const { createOrUpdateUser } = require('./server/database/services');
-        const { generateTokens } = require('./server/middleware/enhanced-auth');
+        const { createOrUpdateUser } = require('../server/database/services');
+        const { generateTokens } = require('../server/middleware/enhanced-auth');
         
         // Create test user
         const testUser = await createOrUpdateUser({
@@ -202,7 +202,7 @@ async function testLiveAuth() {
     console.log('\n9️⃣  Cleanup...');
     try {
         if (testUserId) {
-            const { query } = require('./server/database/index');
+            const { query } = require('../server/database/index');
             await query('DELETE FROM users WHERE id = $1', [testUserId]);
             console.log('✅ Test user cleaned up');
         }

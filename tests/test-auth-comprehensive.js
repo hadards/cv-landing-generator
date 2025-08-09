@@ -15,7 +15,7 @@ async function testAuthSystem() {
             logout,
             getActiveSessions,
             JWT_CONFIG
-        } = require('./server/middleware/enhanced-auth');
+        } = require('../server/middleware/enhanced-auth');
         
         console.log('✅ Enhanced auth middleware imported successfully');
         console.log(`   - JWT expires in: ${JWT_CONFIG.expiresIn}`);
@@ -29,7 +29,7 @@ async function testAuthSystem() {
     // Test 2: Token Generation and Validation
     console.log('\n2️⃣  Testing Token Generation...');
     try {
-        const { generateTokens } = require('./server/middleware/enhanced-auth');
+        const { generateTokens } = require('../server/middleware/enhanced-auth');
         
         const testUserId = 'test-user-123';
         const testEmail = 'test@example.com';
@@ -57,7 +57,7 @@ async function testAuthSystem() {
     // Test 3: Session Management
     console.log('\n3️⃣  Testing Session Management...');
     try {
-        const { generateTokens, getActiveSessions } = require('./server/middleware/enhanced-auth');
+        const { generateTokens, getActiveSessions } = require('../server/middleware/enhanced-auth');
         
         const userId = 'session-test-user';
         const email = 'session@test.com';
@@ -83,7 +83,7 @@ async function testAuthSystem() {
     // Test 4: Database Connection for User Verification
     console.log('\n4️⃣  Testing Database Integration...');
     try {
-        const { createOrUpdateUser, getUserById } = require('./server/database/services');
+        const { createOrUpdateUser, getUserById } = require('../server/database/services');
         
         // Test user creation
         const testUser = {
@@ -107,7 +107,7 @@ async function testAuthSystem() {
         console.log(`   - Retrieved user: ${retrievedUser.name} (${retrievedUser.email})`);
         
         // Cleanup test user
-        const { query } = require('./server/database/index');
+        const { query } = require('../server/database/index');
         await query('DELETE FROM users WHERE id = $1', [createdUser.id]);
         console.log('✅ Test user cleaned up');
         
@@ -118,7 +118,7 @@ async function testAuthSystem() {
     // Test 5: Mock Authentication Request
     console.log('\n5️⃣  Testing Mock Authentication Request...');
     try {
-        const { generateTokens, verifyTokenEnhanced } = require('./server/middleware/enhanced-auth');
+        const { generateTokens, verifyTokenEnhanced } = require('../server/middleware/enhanced-auth');
         
         // Create test user and token
         const testUser = {
@@ -130,7 +130,7 @@ async function testAuthSystem() {
             profile_picture_url: null
         };
         
-        const { createOrUpdateUser, getUserById } = require('./server/database/services');
+        const { createOrUpdateUser, getUserById } = require('../server/database/services');
         const createdUser = await createOrUpdateUser(testUser);
         
         const tokens = generateTokens(createdUser.id, createdUser.email);
@@ -162,7 +162,7 @@ async function testAuthSystem() {
         await verifyTokenEnhanced(mockReq, mockRes, mockNext);
         
         // Cleanup
-        const { query } = require('./server/database/index');
+        const { query } = require('../server/database/index');
         await query('DELETE FROM users WHERE id = $1', [createdUser.id]);
         
     } catch (error) {
@@ -173,7 +173,7 @@ async function testAuthSystem() {
     console.log('\n6️⃣  Testing Route Protection...');
     try {
         const express = require('express');
-        const { verifyTokenEnhanced } = require('./server/middleware/enhanced-auth');
+        const { verifyTokenEnhanced } = require('../server/middleware/enhanced-auth');
         
         // Check if routes are properly protected
         const routeFiles = [
@@ -195,7 +195,7 @@ async function testAuthSystem() {
     // Test 7: Session Persistence Test
     console.log('\n7️⃣  Testing Session Persistence...');
     try {
-        const { generateTokens, getActiveSessions } = require('./server/middleware/enhanced-auth');
+        const { generateTokens, getActiveSessions } = require('../server/middleware/enhanced-auth');
         
         const userId = 'persistence-test';
         const email = 'persist@test.com';
@@ -227,7 +227,7 @@ async function testHttpClientConsistency() {
     
     try {
         // Test Ollama client uses fetch
-        const OllamaClient = require('./server/lib/utils/ollama-client');
+        const OllamaClient = require('../server/lib/utils/ollama-client');
         const ollamaClient = new OllamaClient();
         
         console.log('✅ Ollama client imported successfully');
