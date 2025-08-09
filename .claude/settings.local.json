@@ -24,7 +24,8 @@
       "Bash(sed:*)",
       "Bash(LLM_CLIENT_TYPE=ollama node test-queue-mock.js)",
       "Bash(LLM_CLIENT_TYPE=ollama node tests/integration/test-queue-mock.js)",
-      "Bash(del test-processors.js)"
+      "Bash(del test-processors.js)",
+      "Bash(powershell:*)"
     ],
     "deny": []
   }

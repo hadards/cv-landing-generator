@@ -1,6 +1,5 @@
 // File: lib/utils/ollama-client.js
-const https = require('https');
-const http = require('http');
+// Standardized Ollama client using fetch() API for consistency
 const LLMClientBase = require('./llm-client-base');
 
 class OllamaClient extends LLMClientBase {
@@ -10,6 +9,7 @@ class OllamaClient extends LLMClientBase {
         this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
         this.model = config.model || process.env.OLLAMA_MODEL || 'llama2';
         this.temperature = config.temperature || 0.7;
+        this.timeout = config.timeout || 30000; // 30 second default timeout
         
         console.log(`Ollama client initialized - URL: ${this.baseUrl}, Model: ${this.model}`);
     }
@@ -22,69 +22,52 @@ class OllamaClient extends LLMClientBase {
             stream: false
         };
 
-        return new Promise((resolve, reject) => {
-            const url = new URL('/api/generate', this.baseUrl);
-            const isHttps = url.protocol === 'https:';
-            const httpModule = isHttps ? https : http;
-            
-            const requestOptions = {
-                hostname: url.hostname,
-                port: url.port || (isHttps ? 443 : 80),
-                path: url.pathname,
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), options.timeout || this.timeout);
+
+            const response = await fetch(`${this.baseUrl}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(JSON.stringify(requestData))
                 },
-                timeout: options.timeout || this.config.timeout
-            };
-
-            const req = httpModule.request(requestOptions, (res) => {
-                let data = '';
-                
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
-                
-                res.on('end', () => {
-                    try {
-                        const response = JSON.parse(data);
-                        
-                        if (res.statusCode !== 200) {
-                            reject(new Error(`Ollama API error: ${response.error || 'Unknown error'}`));
-                            return;
-                        }
-                        
-                        if (response.error) {
-                            reject(new Error(`Ollama error: ${response.error}`));
-                            return;
-                        }
-                        
-                        resolve(response.response || '');
-                    } catch (error) {
-                        reject(new Error(`Failed to parse Ollama response: ${error.message}`));
-                    }
-                });
+                body: JSON.stringify(requestData),
+                signal: controller.signal
             });
 
-            req.on('error', (error) => {
-                if (error.code === 'ECONNREFUSED') {
-                    reject(new Error('Cannot connect to Ollama. Make sure Ollama is running.'));
-                } else if (error.code === 'TIMEOUT') {
-                    reject(new Error('timeout'));
-                } else {
-                    reject(error);
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                let errorMessage = `Ollama API error (${response.status})`;
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = `Ollama API error: ${errorData.error || errorText}`;
+                } catch {
+                    errorMessage = `Ollama API error: ${errorText}`;
                 }
-            });
+                
+                throw new Error(errorMessage);
+            }
 
-            req.on('timeout', () => {
-                req.destroy();
-                reject(new Error('timeout'));
-            });
+            const responseData = await response.json();
+            
+            if (responseData.error) {
+                throw new Error(`Ollama error: ${responseData.error}`);
+            }
 
-            req.write(JSON.stringify(requestData));
-            req.end();
-        });
+            return responseData.response || '';
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('timeout');
+            }
+            if (error.code === 'ECONNREFUSED' || error.message.includes('fetch failed')) {
+                throw new Error('Cannot connect to Ollama. Make sure Ollama is running.');
+            }
+            throw error;
+        }
     }
 
     async _validateConnection() {
@@ -112,74 +95,52 @@ class OllamaClient extends LLMClientBase {
     }
 
     async _checkOllamaStatus() {
-        return new Promise((resolve, reject) => {
-            const url = new URL('/api/tags', this.baseUrl);
-            const isHttps = url.protocol === 'https:';
-            const httpModule = isHttps ? https : http;
-            
-            const requestOptions = {
-                hostname: url.hostname,
-                port: url.port || (isHttps ? 443 : 80),
-                path: url.pathname,
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for status check
+
+            const response = await fetch(`${this.baseUrl}/api/tags`, {
                 method: 'GET',
-                timeout: 5000
-            };
-
-            const req = httpModule.request(requestOptions, (res) => {
-                let data = '';
-                
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
-                
-                res.on('end', () => {
-                    try {
-                        const response = JSON.parse(data);
-                        
-                        if (res.statusCode === 200) {
-                            // Check if our model exists
-                            const models = response.models || [];
-                            const modelExists = models.some(m => m.name === this.model || m.name.startsWith(this.model + ':'));
-                            
-                            if (!modelExists) {
-                                console.warn(`Warning: Model ${this.model} not found. Available models:`, models.map(m => m.name));
-                                console.warn(`You may need to run: ollama pull ${this.model}`);
-                            }
-                            
-                            resolve(response);
-                        } else {
-                            reject(new Error(`Ollama status check failed: ${res.statusCode}`));
-                        }
-                    } catch (error) {
-                        reject(new Error(`Failed to parse Ollama status response: ${error.message}`));
-                    }
-                });
+                signal: controller.signal
             });
 
-            req.on('error', (error) => {
-                if (error.code === 'ECONNREFUSED') {
-                    reject(new Error('Cannot connect to Ollama'));
-                } else {
-                    reject(error);
-                }
-            });
+            clearTimeout(timeoutId);
 
-            req.on('timeout', () => {
-                req.destroy();
-                reject(new Error('Ollama status check timeout'));
-            });
+            if (!response.ok) {
+                throw new Error(`Ollama status check failed: ${response.status}`);
+            }
 
-            req.end();
-        });
+            const responseData = await response.json();
+            
+            // Check if our model exists
+            const models = responseData.models || [];
+            const modelExists = models.some(m => m.name === this.model || m.name.startsWith(this.model + ':'));
+            
+            if (!modelExists && models.length > 0) {
+                console.warn(`Warning: Model ${this.model} not found. Available models:`, models.map(m => m.name));
+                console.warn(`You may need to run: ollama pull ${this.model}`);
+            }
+            
+            return responseData;
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('Ollama status check timeout');
+            }
+            if (error.code === 'ECONNREFUSED' || error.message.includes('fetch failed')) {
+                throw new Error('Cannot connect to Ollama');
+            }
+            throw error;
+        }
     }
 
     // Ollama-specific method to list available models
     async listModels() {
         try {
-            await this._checkOllamaStatus();
-            const url = new URL('/api/tags', this.baseUrl);
-            // Implementation would make HTTP request to get models
-            console.log(`Available models can be listed at: ${url.toString()}`);
+            const statusData = await this._checkOllamaStatus();
+            const models = statusData.models || [];
+            console.log('Available Ollama models:', models.map(m => m.name));
+            return models;
         } catch (error) {
             throw new Error(`Failed to list models: ${error.message}`);
         }
@@ -189,6 +150,10 @@ class OllamaClient extends LLMClientBase {
     async pullModel(modelName) {
         console.log(`To pull model ${modelName}, run: ollama pull ${modelName}`);
         console.log('This needs to be done from the command line.');
+        
+        // Note: We could implement the pull API call here if needed:
+        // POST /api/pull with { "name": modelName }
+        // But it's typically done via CLI
     }
 }
 

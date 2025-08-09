@@ -188,11 +188,19 @@ const verifyTokenEnhanced = async (req, res, next) => {
         }
         
         // Check session validity (skip for legacy tokens without sessionId)
-        if (decoded.sessionId && isSessionExpired(decoded.userId, decoded.sessionId)) {
-            return res.status(401).json({ 
-                error: 'Session expired',
-                code: 'SESSION_EXPIRED'
-            });
+        // Note: If session doesn't exist in memory (server restart), recreate it from token
+        if (decoded.sessionId) {
+            const userSessions = activeSessions.get(decoded.userId);
+            if (!userSessions || !userSessions.has(decoded.sessionId)) {
+                // Session not in memory - recreate from valid token (server restart scenario)
+                console.log(`Recreating session ${decoded.sessionId.substring(0, 8)}... for user ${decoded.userId}`);
+                trackActiveSession(decoded.userId, decoded.sessionId, decoded.tokenId);
+            } else if (isSessionExpired(decoded.userId, decoded.sessionId)) {
+                return res.status(401).json({ 
+                    error: 'Session expired',
+                    code: 'SESSION_EXPIRED'
+                });
+            }
         }
         
         // Verify user still exists
