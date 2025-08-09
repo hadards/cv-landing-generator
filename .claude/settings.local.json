@@ -16,7 +16,10 @@
       "Bash(npm run dev:frontend:*)",
       "Bash(del fix-database.js)",
       "Bash(ng build:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(del test-queue-system.js test-queue-complete.js test-queue-endpoints.js test-frontend-integration.js fix-processing-jobs-table.js)",
+      "Bash(mv:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }

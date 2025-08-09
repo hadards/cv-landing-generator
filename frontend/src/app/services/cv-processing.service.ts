@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, Subject } from 'rxjs';
 import { AuthService } from './auth.service';
+import { QueueService, QueueJob } from './queue.service';
 import { environment } from '../../environments/environment';
 
 export interface ProcessingPhase {
@@ -48,11 +49,62 @@ export class CVProcessingService {
 
     constructor(
         private http: HttpClient,
-        private authService: AuthService
+        private authService: AuthService,
+        private queueService: QueueService
     ) { }
 
     /**
-     * Process CV directly and simply
+     * Process CV using queue system
+     */
+    async processCVWithQueue(file: File, profilePicture?: string): Promise<{jobId: string, fileId: string, job: Observable<QueueJob>}> {
+        try {
+            // Reset phases
+            this.resetPhases();
+            
+            // Pre-check: Verify authentication
+            const token = this.authService.getToken();
+            if (!token) {
+                throw new Error('Authentication required - please log in first');
+            }
+            
+            console.log('Starting CV processing with queue:', {
+                fileName: file.name,
+                fileSize: file.size,
+                hasAuth: !!token
+            });
+            
+            // Phase 1: File Upload
+            this.updatePhase(0, 'processing');
+            const uploadResult = await this.uploadFile(file);
+            this.updatePhase(0, 'completed');
+            
+            // Validate upload result has fileId
+            if (!uploadResult.success || !uploadResult.file?.id) {
+                throw new Error('Upload failed - no file ID received');
+            }
+            
+            // Phase 2: Queue CV Processing
+            this.updatePhase(1, 'processing');
+            const processResult = await this.queueCVProcessing(uploadResult.file.id);
+            this.updatePhase(1, 'completed');
+            
+            // Start polling job status
+            const jobObservable = this.queueService.pollJobStatus(processResult.jobId);
+            
+            return {
+                jobId: processResult.jobId,
+                fileId: uploadResult.file.id,
+                job: jobObservable
+            };
+            
+        } catch (error) {
+            this.updatePhase(this.getCurrentPhaseIndex(), 'error');
+            throw error;
+        }
+    }
+
+    /**
+     * Process CV directly and simply (fallback)
      */
     async processCV(file: File, profilePicture?: string): Promise<CVProcessingResult> {
         try {
@@ -163,16 +215,51 @@ export class CVProcessingService {
 
             // Get auth headers but don't set Content-Type for file uploads
             const token = this.authService.getToken();
+            
+            if (!token) {
+                reject(new Error('Authentication required - please log in'));
+                return;
+            }
+            
             const headers = new HttpHeaders({
                 'Authorization': `Bearer ${token}`
                 // Don't set Content-Type - let browser set it with boundary
             });
 
+            console.log('Uploading file:', {
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                hasToken: !!token
+            });
+
             this.http.post(`${this.apiUrl}/cv/upload`, formData, { headers }).subscribe({
-                next: (response) => resolve(response),
+                next: (response: any) => {
+                    console.log('Upload successful:', {
+                        success: response.success,
+                        fileId: response.file?.id,
+                        fileName: response.file?.originalName
+                    });
+                    resolve(response);
+                },
                 error: (error) => {
                     console.error('Upload error:', error);
-                    const errorMessage = error?.error?.message || error?.message || 'Upload failed';
+                    console.error('Upload error details:', {
+                        status: error.status,
+                        statusText: error.statusText,
+                        url: error.url,
+                        error: error.error
+                    });
+                    
+                    let errorMessage = 'Upload failed';
+                    if (error.status === 401) {
+                        errorMessage = 'Authentication failed - please log in again';
+                    } else if (error.status === 400) {
+                        errorMessage = error?.error?.error || 'Invalid file or upload failed';
+                    } else {
+                        errorMessage = error?.error?.message || error?.message || 'Upload failed';
+                    }
+                    
                     reject(new Error(errorMessage));
                 }
             });
@@ -197,6 +284,74 @@ export class CVProcessingService {
         });
     }
 
+    /**
+     * Queue CV processing job
+     */
+    private async queueCVProcessing(fileId: string): Promise<{jobId: string, position: number, estimatedWaitMinutes: number}> {
+        return new Promise((resolve, reject) => {
+            const token = this.authService.getToken();
+            
+            if (!token) {
+                reject(new Error('Authentication required - please log in'));
+                return;
+            }
+            
+            console.log('Queueing CV processing:', {
+                fileId,
+                hasToken: !!token,
+                apiUrl: `${this.apiUrl}/cv/process`
+            });
+            
+            this.http.post<any>(`${this.apiUrl}/cv/process`, 
+                { fileId },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            ).subscribe({
+                next: (response) => {
+                    if (response.success) {
+                        resolve({
+                            jobId: response.jobId,
+                            position: response.position,
+                            estimatedWaitMinutes: response.estimatedWaitMinutes
+                        });
+                    } else {
+                        reject(new Error(response.message || 'Failed to queue CV processing'));
+                    }
+                },
+                error: (error) => {
+                    console.error('Queue processing error:', error);
+                    console.error('Error details:', {
+                        status: error.status,
+                        statusText: error.statusText,
+                        url: error.url,
+                        error: error.error
+                    });
+                    
+                    let errorMessage = 'Processing queue failed';
+                    if (error.status === 400) {
+                        errorMessage = error?.error?.error || 'Bad request - validation failed';
+                        if (error?.error?.details) {
+                            errorMessage += ': ' + error.error.details.map((d: any) => d.msg).join(', ');
+                        }
+                    } else if (error.status === 401) {
+                        errorMessage = 'Authentication failed - please log in again';
+                    } else if (error.status === 403) {
+                        errorMessage = 'Access denied - file not authorized';
+                    } else if (error.status === 404) {
+                        errorMessage = 'File not found - please upload again';
+                    } else {
+                        errorMessage = error?.error?.message || error?.message || 'Processing queue failed';
+                    }
+                    
+                    reject(new Error(errorMessage));
+                }
+            });
+        });
+    }
 
     /**
      * Get current phase index for error handling

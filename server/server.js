@@ -4,7 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Import monitoring systems
 const { requestMonitoring, errorMonitoring } = require('./middleware/monitoring');
@@ -14,9 +14,15 @@ const fileCleanupManager = require('./lib/file-cleanup');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Validate required environment variables
-if (!process.env.GEMINI_API_KEY) {
-    console.error('ERROR: GEMINI_API_KEY is required for CV processing');
+// Validate required environment variables based on LLM client type
+const llmClientType = process.env.LLM_CLIENT_TYPE || 'gemini';
+if (llmClientType === 'gemini' && !process.env.GEMINI_API_KEY) {
+    console.error('ERROR: GEMINI_API_KEY is required when LLM_CLIENT_TYPE=gemini');
+    process.exit(1);
+}
+
+if (llmClientType === 'ollama' && !process.env.OLLAMA_BASE_URL) {
+    console.error('ERROR: OLLAMA_BASE_URL is required when LLM_CLIENT_TYPE=ollama');
     process.exit(1);
 }
 

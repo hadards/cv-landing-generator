@@ -33,9 +33,8 @@ const router = express.Router();
 const templateProcessor = new TemplateProcessor();
 const intelligentProcessor = new IntelligentCVProcessor();
 
-// Simple rate limiting for scaling
-let currentlyProcessing = 0;
-const MAX_CONCURRENT_PROCESSING = 2; // Limit concurrent CV processing
+// Initialize simple queue manager (will be created after tempFileCache)
+let queueManager;
 
 // Configure multer for file uploads
 const upload = multer({
@@ -48,7 +47,9 @@ const upload = multer({
         const allowedTypes = [
             'application/pdf',
             'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            // Allow text files for testing
+            'text/plain'
         ];
         
         // Sanitize filename - remove dangerous characters
@@ -61,7 +62,7 @@ const upload = multer({
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only PDF, DOC, and DOCX files are allowed.'));
+            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed.'));
         }
     }
 });
@@ -176,6 +177,7 @@ const validateFileContent = async (req, res, next) => {
 const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        console.error('Validation errors:', errors.array());
         return res.status(400).json({
             error: 'Validation failed',
             details: errors.array()
@@ -225,7 +227,7 @@ const verifyTokenEnhancedWithQuery = async (req, res, next) => {
 // File processing storage - now using database instead of in-memory Maps
 // Keep temporary file cache for processing (files are cleaned up after processing)
 class SecureFileCache {
-    constructor(maxSize = 100, ttlMs = 30 * 60 * 1000) { // 30 minutes TTL
+    constructor(maxSize = 100, ttlMs = 2 * 60 * 60 * 1000) { // 2 hours TTL for queue processing
         this.cache = new Map();
         this.maxSize = maxSize;
         this.ttlMs = ttlMs;
@@ -269,6 +271,14 @@ class SecureFileCache {
 }
 
 const tempFileCache = new SecureFileCache();
+
+// Initialize simple queue manager with file cache access
+const SimpleQueueManager = require('../lib/simple-queue-manager');
+const { query: dbQuery } = require('../database/index');
+queueManager = new SimpleQueueManager({ query: dbQuery }, tempFileCache);
+
+// Export for external access if needed
+module.exports.tempFileCache = tempFileCache;
 
 // File upload endpoint
 router.post('/upload', verifyTokenEnhanced, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
@@ -327,6 +337,9 @@ router.post('/process',
     handleValidationErrors,
     authorizeFileAccess(tempFileCache),
     async (req, res) => {
+        console.log('=== CV Processing Request ===');
+        console.log('User:', req.user ? `${req.user.userId} (${req.user.email})` : 'None');
+        console.log('Body:', { fileId: req.body?.fileId, hasProfilePicture: !!req.body?.profilePicture });
     try {
         const { fileId } = req.body;
         
@@ -351,57 +364,33 @@ router.post('/process',
             throw new Error('No text could be extracted from the file');
         }
 
-        // Simple rate limiting check
-        if (currentlyProcessing >= MAX_CONCURRENT_PROCESSING) {
-            return res.status(429).json({
-                error: 'System is busy processing other CVs. Please try again in a moment.',
-                retryAfter: 30
-            });
-        }
+        // Store extracted text in file info for queue processing
+        fileInfo.extractedText = extractedText;
+        tempFileCache.set(fileId, fileInfo);
 
-        // Process CV directly (with basic rate limiting)
-        currentlyProcessing++;
-        console.log(`Processing CV with AI... (${currentlyProcessing}/${MAX_CONCURRENT_PROCESSING})`);
+        // Add job to queue
+        console.log('Adding CV processing job to queue...');
+        const queueResult = await queueManager.addJob(req.user.userId, fileId);
         
-        try {
-            const structuredData = await intelligentProcessor.processCV(extractedText, req.user.userId);
-            
-            if (!structuredData) {
-                throw new Error('Failed to process CV with AI');
-            }
-
-            console.log('CV processing completed successfully');
-            
-            // Update file status to completed
-            fileInfo.status = 'completed';
-            fileInfo.completedAt = new Date().toISOString();
-            fileInfo.structuredData = structuredData;
-            tempFileCache.set(fileId, fileInfo);
-            
-            // Log successful processing
-            await logProcessing(req.user.userId, 'cv_processing', 'success', null, null);
-            
-            // Return the structured data immediately
-            res.status(200).json({
-                success: true,
-                message: 'CV processed successfully',
-                structuredData: structuredData,
-                fileId: fileId,
-                processingTime: Date.now() - processingStartTime
-            });
-            
-        } finally {
-            currentlyProcessing--;
-            console.log(`CV processing finished (${currentlyProcessing}/${MAX_CONCURRENT_PROCESSING})`);
-        }
+        // Update file status to queued
+        fileInfo.status = 'queued';
+        fileInfo.queuedAt = new Date().toISOString();
+        fileInfo.jobId = queueResult.jobId;
+        tempFileCache.set(fileId, fileInfo);
+        
+        // Return queue information
+        res.status(202).json({
+            success: true,
+            message: `You are #${queueResult.position} in line. Estimated wait time: ${queueResult.estimatedWaitMinutes} minutes`,
+            jobId: queueResult.jobId,
+            position: queueResult.position,
+            estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
+            fileId: fileId,
+            status: 'queued',
+            queuedAt: queueResult.queuedAt
+        });
 
     } catch (error) {
-        // Ensure we decrement counter on any error
-        if (currentlyProcessing > 0) {
-            currentlyProcessing--;
-            console.log(`CV processing error cleanup (${currentlyProcessing}/${MAX_CONCURRENT_PROCESSING})`);
-        }
-        
         console.error('CV processing error:', error);
         res.status(500).json({
             error: 'CV processing failed',
@@ -874,5 +863,146 @@ router.get('/download',
     }
 });
 
+// ==========================================
+// QUEUE STATUS ENDPOINTS
+// ==========================================
+
+// Get job status by ID
+router.get('/job/:jobId/status', 
+    verifyTokenEnhanced,
+    [
+        param('jobId').isUUID().withMessage('Valid job ID is required')
+    ],
+    async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                errors: errors.array()
+            });
+        }
+
+        const { jobId } = req.params;
+        const job = await queueManager.getJobStatus(jobId);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                error: 'Job not found'
+            });
+        }
+
+        // Check if user owns this job
+        if (job.user_id !== req.user.userId) {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied'
+            });
+        }
+
+        res.json({
+            success: true,
+            job: {
+                id: job.id,
+                status: job.status,
+                position: job.position,
+                estimatedWaitMinutes: job.estimated_wait_minutes,
+                createdAt: job.created_at,
+                startedAt: job.started_at,
+                completedAt: job.completed_at,
+                structuredData: job.structured_data,
+                error: job.error_message
+            }
+        });
+
+    } catch (error) {
+        console.error('Job status error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get job status'
+        });
+    }
+});
+
+// Get user's jobs
+router.get('/jobs', verifyTokenEnhanced, async (req, res) => {
+    try {
+        const userJobs = await queueManager.getUserJobs(req.user.userId);
+        const queueStats = await queueManager.getQueueStats();
+        
+        res.json({
+            success: true,
+            jobs: userJobs,
+            queueStats
+        });
+
+    } catch (error) {
+        console.error('User jobs error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get user jobs'
+        });
+    }
+});
+
+// Cancel a job
+router.delete('/job/:jobId', 
+    verifyTokenEnhanced,
+    [
+        param('jobId').isUUID().withMessage('Valid job ID is required')
+    ],
+    async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                errors: errors.array()
+            });
+        }
+
+        const { jobId } = req.params;
+        const cancelled = await queueManager.cancelJob(jobId, req.user.userId);
+        
+        if (cancelled) {
+            res.json({
+                success: true,
+                message: 'Job cancelled successfully'
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: 'Job cannot be cancelled (not found or not queued)'
+            });
+        }
+
+    } catch (error) {
+        console.error('Job cancellation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to cancel job'
+        });
+    }
+});
+
+// Get queue statistics
+router.get('/queue/stats', verifyTokenEnhanced, async (req, res) => {
+    try {
+        const stats = await queueManager.getQueueStats();
+        
+        res.json({
+            success: true,
+            stats
+        });
+
+    } catch (error) {
+        console.error('Queue stats error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get queue statistics'
+        });
+    }
+});
 
 module.exports = router;

@@ -295,26 +295,41 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         this.isProcessing = true;
 
         try {
-            // Use direct synchronous processing
-            const result = await this.cvProcessingService.processCV(this.uploadedFile, this.profilePicture || undefined);
+            // Use queue-based processing
+            const { jobId, fileId, job } = await this.cvProcessingService.processCVWithQueue(this.uploadedFile, this.profilePicture || undefined);
 
-            this.isProcessing = false;
+            console.log(`CV processing job ${jobId} queued, monitoring status...`);
 
-            if (result.success && result.data) {
-                this.cvData = result.data;
-                this.populateCVSections();
-                this.wizardSteps[2].completed = true;
-                this.nextStep();
-                console.log('CV processing completed successfully');
-            } else {
-                alert('CV processing failed: ' + (result.message || 'Unknown error'));
-            }
+            // Subscribe to job status updates
+            job.subscribe({
+                next: (jobStatus) => {
+                    console.log('Job status update:', jobStatus);
+                    
+                    if (jobStatus.status === 'completed' && jobStatus.structuredData) {
+                        this.isProcessing = false;
+                        this.cvData = jobStatus.structuredData;
+                        this.populateCVSections();
+                        this.wizardSteps[2].completed = true;
+                        this.nextStep();
+                        console.log('CV processing completed successfully');
+                    } else if (jobStatus.status === 'failed') {
+                        this.isProcessing = false;
+                        alert('CV processing failed: ' + (jobStatus.error || 'Unknown error'));
+                    }
+                    // For 'queued' and 'processing' statuses, keep showing progress
+                },
+                error: (error) => {
+                    this.isProcessing = false;
+                    console.error('Job monitoring error:', error);
+                    alert('Failed to process CV: ' + error.message);
+                }
+            });
 
         } catch (error) {
             this.isProcessing = false;
             console.error('CV processing error:', error);
             const errorMessage = (error as any)?.message || 'Unknown error occurred';
-            alert('Failed to process CV: ' + errorMessage);
+            alert('Failed to start CV processing: ' + errorMessage);
         }
     }
 

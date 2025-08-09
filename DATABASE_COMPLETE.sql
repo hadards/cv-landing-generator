@@ -7,6 +7,7 @@
 -- ============================================================================
 
 -- Clean start - drop all existing tables and functions
+DROP TABLE IF EXISTS processing_jobs CASCADE;
 DROP TABLE IF EXISTS processing_logs CASCADE;
 DROP TABLE IF EXISTS cv_processing_sessions CASCADE;
 DROP TABLE IF EXISTS file_uploads CASCADE;
@@ -117,6 +118,30 @@ CREATE TABLE user_preferences (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Processing jobs table for request queue
+CREATE TABLE processing_jobs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    job_type VARCHAR(50) NOT NULL DEFAULT 'cv_processing',
+    status VARCHAR(20) NOT NULL DEFAULT 'queued', -- 'queued', 'processing', 'completed', 'failed'
+    position INTEGER DEFAULT 0, -- Queue position (1, 2, 3... or 0 when processing)
+    
+    -- Job data and results
+    file_id TEXT,
+    structured_data JSONB,
+    error_message TEXT,
+    
+    -- Timing for free tier management
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Free tier tracking
+    processing_time_seconds INTEGER DEFAULT 0,
+    estimated_wait_minutes INTEGER DEFAULT 0
+);
+
 -- ============================================================================
 -- INDEXES FOR PERFORMANCE
 -- ============================================================================
@@ -153,6 +178,12 @@ CREATE INDEX idx_processing_logs_created ON processing_logs(created_at);
 -- User preferences index
 CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
 
+-- Processing jobs indexes
+CREATE INDEX idx_processing_jobs_user_id ON processing_jobs(user_id);
+CREATE INDEX idx_processing_jobs_status ON processing_jobs(status);
+CREATE INDEX idx_processing_jobs_position ON processing_jobs(position);
+CREATE INDEX idx_processing_jobs_created ON processing_jobs(created_at);
+
 -- ============================================================================
 -- TRIGGERS AND FUNCTIONS
 -- ============================================================================
@@ -185,6 +216,10 @@ CREATE TRIGGER update_cv_sessions_updated_at
 
 CREATE TRIGGER update_user_preferences_updated_at 
     BEFORE UPDATE ON user_preferences 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_processing_jobs_updated_at 
+    BEFORE UPDATE ON processing_jobs 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
@@ -222,7 +257,8 @@ DECLARE
         'user_sites', 
         'cv_processing_sessions',
         'processing_logs', 
-        'user_preferences'
+        'user_preferences',
+        'processing_jobs'
     ];
 BEGIN
     -- Check each required table
@@ -294,12 +330,14 @@ ORDER BY tablename;
 -- ✅ Session-based multi-step processing
 -- ✅ Comprehensive logging and monitoring
 -- ✅ User preferences and settings
+-- ✅ Processing queue with position tracking
+-- ✅ Free tier rate limiting support
 -- ✅ Performance optimization via indexes
 -- ✅ Automatic maintenance and cleanup
 -- 
--- Total Tables: 6
--- Total Indexes: 16
--- Total Triggers: 5
+-- Total Tables: 7
+-- Total Indexes: 20
+-- Total Triggers: 6
 -- Total Functions: 2
 -- 
 -- Ready for production use!

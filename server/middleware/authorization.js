@@ -67,21 +67,29 @@ const authorizeFileAccess = (fileCache) => {
             const userId = req.user.userId || req.user.id;
             const fileId = req.query.fileId || req.body.fileId;
             
+            console.log('File authorization check:', { userId, fileId, hasUser: !!req.user });
+            
             if (!fileId) {
+                console.error('File authorization failed: No file ID provided');
                 return res.status(400).json({ error: 'File ID is required' });
             }
             
             const fileInfo = fileCache.get(fileId);
             if (!fileInfo) {
+                console.error('File authorization failed: File not found in cache:', fileId);
                 return res.status(404).json({ error: 'File not found' });
             }
             
             // Check if user owns the file
             const fileOwnerId = fileInfo.userId || fileInfo.user_id;
+            console.log('File ownership check:', { fileOwnerId, userId, fileId });
+            
             if (fileOwnerId !== userId) {
+                console.error('File authorization failed: User does not own file:', { fileOwnerId, userId });
                 return res.status(403).json({ error: 'Access denied. You do not have permission to access this file.' });
             }
             
+            console.log('File authorization successful:', fileId);
             next();
             
         } catch (error) {
