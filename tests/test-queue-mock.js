@@ -1,4 +1,5 @@
 // Mock Queue Test - Tests queue without using AI API quota
+// Set LLM_CLIENT_TYPE environment variable to test different processors
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 

@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const { randomUUID } = require('crypto');
 const { body, param, query, validationResult } = require('express-validator');
 
-const IntelligentCVProcessor = require('../lib/intelligent-cv-processor-gemini');
+const IntelligentCVProcessor = require('../lib/intelligent-cv-processor');
 const TemplateProcessor = require('../lib/template-processor');
 const securePaths = require('../lib/utils/secure-paths');
 const { 

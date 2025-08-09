@@ -64,7 +64,7 @@ interface TestResult {
         
         <div class="auth-buttons">
           <button class="btn btn-primary" (click)="connectToGitHub()" [disabled]="isLoading">
-            {{ connectionStatus?.connected ? 'Reconnect' : 'Connect to GitHub' }}
+            {{ connectionStatus?.connected ? 'Reconnect' : 'Publish to GitHub' }}
           </button>
           <button class="btn btn-secondary" (click)="checkConnection()" [disabled]="isLoading">
             Check Status

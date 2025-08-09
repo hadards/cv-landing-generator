@@ -182,7 +182,7 @@ class SimpleQueueManager {
 
             try {
                 // Process the CV
-                const IntelligentCVProcessor = require('./intelligent-cv-processor-gemini');
+                const IntelligentCVProcessor = require('./intelligent-cv-processor');
                 const processor = new IntelligentCVProcessor();
                 
                 // Get file info from cache

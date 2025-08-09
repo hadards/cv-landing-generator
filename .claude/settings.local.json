@@ -19,7 +19,8 @@
       "Bash(grep:*)",
       "Bash(del test-queue-system.js test-queue-complete.js test-queue-endpoints.js test-frontend-integration.js fix-processing-jobs-table.js)",
       "Bash(mv:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(LLM_CLIENT_TYPE=ollama node tests/test-queue-mock.js)"
     ],
     "deny": []
   }
