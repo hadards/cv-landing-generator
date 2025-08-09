@@ -77,7 +77,8 @@ const authorizeFileAccess = (fileCache) => {
             }
             
             // Check if user owns the file
-            if (fileInfo.userId !== userId) {
+            const fileOwnerId = fileInfo.userId || fileInfo.user_id;
+            if (fileOwnerId !== userId) {
                 return res.status(403).json({ error: 'Access denied. You do not have permission to access this file.' });
             }
             

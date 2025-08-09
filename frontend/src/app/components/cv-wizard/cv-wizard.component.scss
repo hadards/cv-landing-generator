@@ -368,6 +368,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  transition: all 0.3s ease;
   
   /* Mobile first sizing */
   padding: 0.5rem 0.875rem;
@@ -380,7 +381,6 @@
     font-size: 0.9rem;
     min-height: 40px;
   }
-  transition: all 0.3s ease;
 }
 
 .btn-ghost:hover {

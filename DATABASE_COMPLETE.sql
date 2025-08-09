@@ -214,7 +214,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE
     missing_tables TEXT[] := ARRAY[]::TEXT[];
-    table_name TEXT;
+    tbl_name TEXT;
     table_count INTEGER;
     required_tables TEXT[] := ARRAY[
         'users', 
@@ -226,13 +226,13 @@ DECLARE
     ];
 BEGIN
     -- Check each required table
-    FOREACH table_name IN ARRAY required_tables
+    FOREACH tbl_name IN ARRAY required_tables
     LOOP
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.tables 
-            WHERE table_name = table_name AND table_schema = 'public'
+            WHERE information_schema.tables.table_name = tbl_name AND table_schema = 'public'
         ) THEN
-            missing_tables := array_append(missing_tables, table_name);
+            missing_tables := array_append(missing_tables, tbl_name);
         END IF;
     END LOOP;
     

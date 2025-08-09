@@ -14,7 +14,9 @@
       "Bash(TASKKILL:*)",
       "Bash(psql:*)",
       "Bash(npm run dev:frontend:*)",
-      "Bash(del fix-database.js)"
+      "Bash(del fix-database.js)",
+      "Bash(ng build:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

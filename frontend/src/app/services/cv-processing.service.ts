@@ -30,6 +30,7 @@ export interface ProcessingProgress {
 export class CVProcessingService {
     private apiUrl = environment.apiUrl;
     private progressSubject = new Subject<ProcessingProgress>();
+    private lastProcessedData: any = null;
 
     public progress$ = this.progressSubject.asObservable();
 
@@ -50,6 +51,9 @@ export class CVProcessingService {
         private authService: AuthService
     ) { }
 
+    /**
+     * Process CV directly and simply
+     */
     async processCV(file: File, profilePicture?: string): Promise<CVProcessingResult> {
         try {
             // Reset phases
@@ -57,7 +61,6 @@ export class CVProcessingService {
 
             // Phase 1: Upload file
             this.updatePhase(0, 'processing');
-            await this.delay(300);
             const uploadResult = await this.uploadFile(file);
             this.updatePhase(0, 'completed');
 
@@ -65,45 +68,34 @@ export class CVProcessingService {
                 throw new Error(uploadResult.message || 'Upload failed');
             }
 
-            // Phase 2: Start actual processing
-            this.updatePhase(1, 'processing');
-            await this.delay(500);
-            this.updatePhase(1, 'completed');
-
-            // Simulate individual processing phases
-            const phaseNames = [
-                'Processing personal information',
-                'Generating about me content',
-                'Extracting work experience',
-                'Organizing skills and expertise',
-                'Processing education background',
-                'Finding projects and portfolio',
-                'Extracting certifications'
-            ];
-
-            // Start actual backend processing (non-blocking)
-            const processPromise = this.processCVFile(uploadResult.file.id);
-
-            // Simulate phases with realistic timing
-            for (let i = 2; i < this.phases.length; i++) {
+            // Phase 2: Start processing - show phases for UX
+            for (let i = 1; i < this.phases.length; i++) {
                 this.updatePhase(i, 'processing');
-                await this.delay(800 + Math.random() * 400); // Random 800-1200ms
+                
+                if (i === 1) {
+                    // Actual processing happens here
+                    const processResult = await this.processCVFile(uploadResult.file.id);
+                    
+                    if (!processResult.success) {
+                        throw new Error(processResult.message || 'Processing failed');
+                    }
+
+                    // Add profile picture if provided
+                    if (profilePicture && processResult.structuredData) {
+                        processResult.structuredData.personalInfo = {
+                            ...processResult.structuredData.personalInfo,
+                            profilePicture: profilePicture
+                        };
+                    }
+                    
+                    // Store result for return
+                    this.lastProcessedData = processResult.structuredData;
+                } else {
+                    // Quick delay for UX
+                    await this.delay(200);
+                }
+                
                 this.updatePhase(i, 'completed');
-            }
-
-            // Wait for actual processing to complete
-            const processResult = await processPromise;
-
-            if (!processResult.success) {
-                throw new Error(processResult.message || 'Processing failed');
-            }
-
-            // Add profile picture if provided
-            if (profilePicture && processResult.structuredData) {
-                processResult.structuredData.personalInfo = {
-                    ...processResult.structuredData.personalInfo,
-                    profilePicture: profilePicture
-                };
             }
 
             // Mark as completed
@@ -116,7 +108,7 @@ export class CVProcessingService {
 
             return {
                 success: true,
-                data: processResult.structuredData
+                data: this.lastProcessedData
             };
 
         } catch (error) {
@@ -140,6 +132,7 @@ export class CVProcessingService {
             };
         }
     }
+
 
     private resetPhases() {
         this.phases.forEach(phase => phase.status = 'pending');
@@ -177,7 +170,11 @@ export class CVProcessingService {
 
             this.http.post(`${this.apiUrl}/cv/upload`, formData, { headers }).subscribe({
                 next: (response) => resolve(response),
-                error: (error) => reject(new Error(error.error?.message || 'Upload failed'))
+                error: (error) => {
+                    console.error('Upload error:', error);
+                    const errorMessage = error?.error?.message || error?.message || 'Upload failed';
+                    reject(new Error(errorMessage));
+                }
             });
         });
     }
@@ -188,9 +185,24 @@ export class CVProcessingService {
 
             this.http.post(`${this.apiUrl}/cv/process`, { fileId }, { headers }).subscribe({
                 next: (response) => resolve(response),
-                error: (error) => reject(new Error(error.error?.message || 'Processing failed'))
+                error: (error) => {
+                    // Handle rate limiting with retry suggestion
+                    if (error.status === 429) {
+                        reject(new Error('System is busy processing other CVs. Please try again in a moment.'));
+                    } else {
+                        reject(new Error(error.error?.message || 'Processing failed'));
+                    }
+                }
             });
         });
+    }
+
+
+    /**
+     * Get current phase index for error handling
+     */
+    private getCurrentPhaseIndex(): number {
+        return this.phases.findIndex(phase => phase.status === 'processing');
     }
 
     private getAuthHeaders(): HttpHeaders {

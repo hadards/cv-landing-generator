@@ -33,6 +33,10 @@ const router = express.Router();
 const templateProcessor = new TemplateProcessor();
 const intelligentProcessor = new IntelligentCVProcessor();
 
+// Simple rate limiting for scaling
+let currentlyProcessing = 0;
+const MAX_CONCURRENT_PROCESSING = 2; // Limit concurrent CV processing
+
 // Configure multer for file uploads
 const upload = multer({
     dest: 'uploads/',
@@ -347,39 +351,57 @@ router.post('/process',
             throw new Error('No text could be extracted from the file');
         }
 
-        // Structure the data with Intelligent AI processing
-        console.log('Processing with Intelligent CV Processor (Gemini + Memory)...');
-        const structuredData = await intelligentProcessor.processCV(extractedText, req.user.userId);
-        console.log('Intelligent processing completed for:', structuredData.personalInfo?.name);
-        
-        const processingTime = Date.now() - processingStartTime;
-        recordCVProcessing(req.user.userId, processingTime);
-
-        // Validate the structured data
-        if (!structuredData.personalInfo?.name) {
-            throw new Error('Unable to extract name from CV');
+        // Simple rate limiting check
+        if (currentlyProcessing >= MAX_CONCURRENT_PROCESSING) {
+            return res.status(429).json({
+                error: 'System is busy processing other CVs. Please try again in a moment.',
+                retryAfter: 30
+            });
         }
 
-        // Update file status
-        fileInfo.status = 'processed';
-        fileInfo.processedAt = new Date().toISOString();
-        fileInfo.extractedText = extractedText;
-        fileInfo.structuredData = structuredData;
-        tempFileCache.set(fileId, fileInfo);
+        // Process CV directly (with basic rate limiting)
+        currentlyProcessing++;
+        console.log(`Processing CV with AI... (${currentlyProcessing}/${MAX_CONCURRENT_PROCESSING})`);
         
-        // Log successful processing to database
-        await logProcessing(req.user.userId, 'cv_processing', 'success', null, null);
+        try {
+            const structuredData = await intelligentProcessor.processCV(extractedText, req.user.userId);
+            
+            if (!structuredData) {
+                throw new Error('Failed to process CV with AI');
+            }
 
-        res.status(200).json({
-            success: true,
-            message: 'CV processed successfully',
-            extractedText: extractedText,
-            structuredData: structuredData,
-            fileId: fileId,
-            processedAt: new Date().toISOString()
-        });
+            console.log('CV processing completed successfully');
+            
+            // Update file status to completed
+            fileInfo.status = 'completed';
+            fileInfo.completedAt = new Date().toISOString();
+            fileInfo.structuredData = structuredData;
+            tempFileCache.set(fileId, fileInfo);
+            
+            // Log successful processing
+            await logProcessing(req.user.userId, 'cv_processing', 'success', null, null);
+            
+            // Return the structured data immediately
+            res.status(200).json({
+                success: true,
+                message: 'CV processed successfully',
+                structuredData: structuredData,
+                fileId: fileId,
+                processingTime: Date.now() - processingStartTime
+            });
+            
+        } finally {
+            currentlyProcessing--;
+            console.log(`CV processing finished (${currentlyProcessing}/${MAX_CONCURRENT_PROCESSING})`);
+        }
 
     } catch (error) {
+        // Ensure we decrement counter on any error
+        if (currentlyProcessing > 0) {
+            currentlyProcessing--;
+            console.log(`CV processing error cleanup (${currentlyProcessing}/${MAX_CONCURRENT_PROCESSING})`);
+        }
+        
         console.error('CV processing error:', error);
         res.status(500).json({
             error: 'CV processing failed',
@@ -851,5 +873,6 @@ router.get('/download',
         }
     }
 });
+
 
 module.exports = router;

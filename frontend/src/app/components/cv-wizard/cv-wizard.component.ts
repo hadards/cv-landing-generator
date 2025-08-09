@@ -168,20 +168,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     ) { }
 
     ngOnInit() {
-        this.progressSubscription = this.cvProcessingService.progress$.subscribe(
-            (progress: ProcessingProgress) => {
-                this.processingPhases = progress.phases;
-
-                if (progress.completed && !progress.error) {
-                    this.isProcessing = false;
-                    this.wizardSteps[2].completed = true;
-                    this.nextStep();
-                } else if (progress.error) {
-                    this.isProcessing = false;
-                    alert('Processing failed: ' + progress.error);
-                }
-            }
-        );
+        // Progress subscription removed - now handled directly in job queue monitoring
     }
 
 
@@ -308,19 +295,26 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         this.isProcessing = true;
 
         try {
+            // Use direct synchronous processing
             const result = await this.cvProcessingService.processCV(this.uploadedFile, this.profilePicture || undefined);
 
-            if (result.success) {
+            this.isProcessing = false;
+
+            if (result.success && result.data) {
                 this.cvData = result.data;
                 this.populateCVSections();
+                this.wizardSteps[2].completed = true;
+                this.nextStep();
+                console.log('CV processing completed successfully');
             } else {
-                this.isProcessing = false;
-                alert('Failed to process CV: ' + result.message);
+                alert('CV processing failed: ' + (result.message || 'Unknown error'));
             }
 
         } catch (error) {
             this.isProcessing = false;
-            alert('Failed to process CV: ' + (error as any).message);
+            console.error('CV processing error:', error);
+            const errorMessage = (error as any)?.message || 'Unknown error occurred';
+            alert('Failed to process CV: ' + errorMessage);
         }
     }
 
