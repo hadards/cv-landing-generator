@@ -154,6 +154,7 @@ const authRoutes = require('./routes/auth');
 const cvRoutes = require('./routes/cv');
 const githubRoutes = require('./routes/github');
 const sessionRoutes = require('./routes/session');
+const legalRoutes = require('./routes/legal');
 
 // Mount routes
 app.use('/api', healthRoutes);
@@ -161,6 +162,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/cv', cvRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/session', sessionRoutes);
+app.use('/api/legal', legalRoutes);
 
 // Error monitoring middleware
 app.use(errorMonitoring);
