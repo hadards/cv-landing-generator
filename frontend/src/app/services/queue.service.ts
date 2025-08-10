@@ -192,11 +192,11 @@ export class QueueService {
    */
   getStatusIcon(status: QueueJob['status']): string {
     switch (status) {
-      case 'queued': return '⏳';
-      case 'processing': return '⚡';
-      case 'completed': return '✅';
-      case 'failed': return '❌';
-      default: return '❓';
+      case 'queued': return '';
+      case 'processing': return '';
+      case 'completed': return '';
+      case 'failed': return '';
+      default: return '';
     }
   }
 

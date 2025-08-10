@@ -79,7 +79,7 @@ type PublishState = 'idle' | 'auth-needed' | 'publishing' | 'deploying' | 'succe
       </button>
       
       <div class="text-center">
-        <p class="warm-text-primary font-medium mb-2">🎉 Your CV is now live!</p>
+        <p class="warm-text-primary font-medium mb-2">Your CV is now live!</p>
         <div class="flex items-center justify-center space-x-3 text-sm">
           <a [href]="publishedResult?.siteUrl" target="_blank" class="text-warm-orange hover:text-warm-coral font-medium underline">
             View Live Site

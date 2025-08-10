@@ -67,7 +67,7 @@ import { LegalViewerComponent } from '../legal-viewer/legal-viewer.component';
         <div class="flex flex-col md:flex-row justify-between items-center pt-4 mt-4 border-t border-gray-300">
           <div class="text-sm text-gray-500 mb-2 md:mb-0">
             <p>© 2025 Experimental Educational Project</p>
-            <p class="text-xs" *ngIf="hasAcceptedTerms">✅ Terms accepted on {{ getAcceptanceDate() }}</p>
+            <p class="text-xs" *ngIf="hasAcceptedTerms">Terms accepted on {{ getAcceptanceDate() }}</p>
           </div>
           
           <div class="flex items-center space-x-4 text-xs text-gray-400">
