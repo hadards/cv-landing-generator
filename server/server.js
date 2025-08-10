@@ -63,25 +63,32 @@ app.use((req, res, next) => {
     })(req, res, next);
 });
 
-// Rate limiting
+// Rate limiting - Free tier optimized
 const limiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 20, // Reduced for free tier (was 100)
     message: {
-        error: 'Too many requests',
-        message: 'Please try again later'
+        error: 'Rate limit exceeded',
+        message: 'Free tier allows 20 requests per 15 minutes. Please try again later.',
+        retryAfter: '15 minutes'
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // Skip rate limiting for static assets and health checks
+    skip: (req) => {
+        return req.path.includes('/health') || 
+               req.path.includes('/static') ||
+               req.path.includes('/favicon');
+    }
 });
 
-// More lenient rate limiting for GitHub OAuth routes
+// GitHub OAuth rate limiting - More restrictive for free tier
 const githubLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // Allow more requests for OAuth flow
+    max: parseInt(process.env.GITHUB_RATE_LIMIT) || 20, // Reduced for free tier (was 50)
     message: {
-        error: 'Too many GitHub requests',
-        message: 'Please try again later'
+        error: 'GitHub rate limit exceeded',
+        message: 'Too many GitHub requests. Please try again in 15 minutes.'
     },
     standardHeaders: true,
     legacyHeaders: false,
@@ -202,6 +209,57 @@ async function testDatabaseConnection() {
         return false;
     }
 }
+
+// Memory pressure handling for free tier
+let memoryPressureActive = false;
+const MEMORY_PRESSURE_THRESHOLD = parseInt(process.env.MEMORY_PRESSURE_THRESHOLD) || 400; // MB
+
+const checkMemoryPressure = () => {
+    const usage = process.memoryUsage();
+    const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
+    
+    if (heapUsedMB > MEMORY_PRESSURE_THRESHOLD && !memoryPressureActive) {
+        memoryPressureActive = true;
+        console.warn(`⚠️  MEMORY PRESSURE DETECTED: ${heapUsedMB}MB used (threshold: ${MEMORY_PRESSURE_THRESHOLD}MB)`);
+        console.warn('📉 Activating memory pressure protection - throttling new requests');
+        
+        // Force garbage collection if available
+        if (global.gc) {
+            global.gc();
+            const newUsage = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+            console.log(`🗑️  Garbage collection completed: ${newUsage}MB (freed: ${heapUsedMB - newUsage}MB)`);
+        }
+        
+        // Trigger emergency file cleanup
+        setTimeout(async () => {
+            try {
+                await fileCleanupManager.emergencyCleanup();
+            } catch (error) {
+                console.warn('Emergency cleanup failed:', error.message);
+            }
+        }, 1000); // Delay to avoid blocking current request
+    } else if (heapUsedMB < MEMORY_PRESSURE_THRESHOLD * 0.8 && memoryPressureActive) {
+        memoryPressureActive = false;
+        console.log(`✅ Memory pressure relieved: ${heapUsedMB}MB`);
+    }
+    
+    return memoryPressureActive;
+};
+
+// Memory pressure middleware
+app.use('/api/cv/process', (req, res, next) => {
+    if (checkMemoryPressure()) {
+        return res.status(503).json({
+            error: 'Service temporarily unavailable',
+            message: 'Server is under memory pressure. Please try again in a few minutes.',
+            code: 'MEMORY_PRESSURE'
+        });
+    }
+    next();
+});
+
+// Monitor memory every 30 seconds
+setInterval(checkMemoryPressure, 30000);
 
 // Start server
 const server = app.listen(PORT, async () => {

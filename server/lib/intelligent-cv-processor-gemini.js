@@ -3,6 +3,7 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const IntelligentCVProcessorBase = require('./intelligent-cv-processor-base');
+const { trackApiUsage, checkApiLimits } = require('../database/services');
 
 class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
     constructor(config = {}) {
@@ -105,6 +106,17 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
         console.log('Starting Intelligent CV Processing with Gemini...');
         console.log(`Processing ${cvText.length} characters for user: ${userId}`);
         
+        // Check API limits before processing (Free tier protection)
+        try {
+            const limitCheck = await checkApiLimits(userId, 'gemini');
+            if (!limitCheck.allowed) {
+                throw new Error(`API limit exceeded: ${limitCheck.reason}. Resets: ${limitCheck.resetTime}`);
+            }
+            console.log(`API usage check passed. Remaining: ${limitCheck.remaining} requests`);
+        } catch (error) {
+            console.warn('API limit check failed, proceeding with caution:', error.message);
+        }
+        
         // Clean the text first
         const cleanedText = TextCleaner.prepareForAI(cvText);
         console.log(`Text cleaned: ${cleanedText.length} characters`);
@@ -125,6 +137,14 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
         try {
             // Multi-step processing with memory
             const result = await this.processWithMemory(cleanedText, sessionId);
+            
+            // Track successful API usage (Free tier protection)
+            try {
+                await trackApiUsage(userId, 'gemini', 1, cleanedText.length);
+                console.log('API usage tracked successfully');
+            } catch (trackError) {
+                console.warn('Failed to track API usage:', trackError.message);
+            }
             
             console.log(`CV processing completed for: ${result.personalInfo?.name}`);
             return result;

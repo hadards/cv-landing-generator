@@ -10,20 +10,25 @@ class FileCleanupManager {
         this.cleanupIntervals = new Map();
         this.isRunning = false;
         
-        // Default configuration
+        // Aggressive configuration optimized for free tier / ephemeral storage
         this.config = {
             uploads: {
-                maxAge: parseInt(process.env.UPLOADS_MAX_AGE_HOURS) || 24, // 24 hours
-                maxFiles: parseInt(process.env.UPLOADS_MAX_FILES) || 1000,
-                cleanupInterval: parseInt(process.env.UPLOADS_CLEANUP_INTERVAL_HOURS) || 4 // Every 4 hours
+                maxAge: parseInt(process.env.UPLOADS_MAX_AGE_HOURS) || 2, // 2 hours (aggressive)
+                maxFiles: parseInt(process.env.UPLOADS_MAX_FILES) || 50, // Reduced for free tier
+                cleanupInterval: parseInt(process.env.UPLOADS_CLEANUP_INTERVAL_HOURS) || 1 // Every hour
             },
             generated: {
-                maxAge: parseInt(process.env.GENERATED_MAX_AGE_DAYS) || 30, // 30 days
-                maxFiles: parseInt(process.env.GENERATED_MAX_FILES) || 500,
-                cleanupInterval: parseInt(process.env.GENERATED_CLEANUP_INTERVAL_HOURS) || 12 // Every 12 hours
+                maxAge: parseInt(process.env.GENERATED_MAX_AGE_HOURS) || 12, // 12 hours (was days)
+                maxFiles: parseInt(process.env.GENERATED_MAX_FILES) || 100, // Reduced for free tier
+                cleanupInterval: parseInt(process.env.GENERATED_CLEANUP_INTERVAL_HOURS) || 2 // Every 2 hours
             },
             orphaned: {
-                checkInterval: parseInt(process.env.ORPHANED_CHECK_INTERVAL_HOURS) || 24 // Daily
+                checkInterval: parseInt(process.env.ORPHANED_CHECK_INTERVAL_HOURS) || 4 // Every 4 hours (more frequent)
+            },
+            // New: Immediate cleanup for ephemeral platforms
+            immediate: {
+                enabled: process.env.ENABLE_IMMEDIATE_CLEANUP === 'true' || process.env.NODE_ENV === 'production',
+                postDownloadDelay: parseInt(process.env.POST_DOWNLOAD_CLEANUP_MINUTES) || 5 // 5 minutes
             }
         };
     }
@@ -597,6 +602,110 @@ class FileCleanupManager {
         } catch (error) {
             console.error('Failed to get cleanup stats:', error);
             throw error;
+        }
+    }
+    
+    /**
+     * Schedule immediate cleanup for a specific user's generated site (Free tier / ephemeral storage)
+     * @param {string} userId - User ID
+     * @param {string} siteId - Site ID to cleanup
+     * @param {number} delayMinutes - Minutes to wait before cleanup (default from config)
+     */
+    scheduleImmediateCleanup(userId, siteId, delayMinutes = null) {
+        if (!this.config.immediate.enabled) {
+            console.log('Immediate cleanup disabled, skipping');
+            return;
+        }
+        
+        const delay = (delayMinutes || this.config.immediate.postDownloadDelay) * 60 * 1000;
+        const cleanupKey = `${userId}_${siteId}`;
+        
+        console.log(`⏰ Scheduling cleanup for user ${userId}, site ${siteId} in ${delay / 60000} minutes`);
+        
+        // Cancel any existing cleanup for this site
+        if (this.cleanupTimeouts && this.cleanupTimeouts.has(cleanupKey)) {
+            clearTimeout(this.cleanupTimeouts.get(cleanupKey));
+        }
+        
+        if (!this.cleanupTimeouts) {
+            this.cleanupTimeouts = new Map();
+        }
+        
+        const timeoutId = setTimeout(async () => {
+            try {
+                await this.cleanupSpecificSite(userId, siteId);
+                console.log(`✅ Immediate cleanup completed for user ${userId}, site ${siteId}`);
+            } catch (error) {
+                console.warn(`Failed immediate cleanup for user ${userId}, site ${siteId}:`, error.message);
+            } finally {
+                this.cleanupTimeouts.delete(cleanupKey);
+            }
+        }, delay);
+        
+        this.cleanupTimeouts.set(cleanupKey, timeoutId);
+    }
+    
+    /**
+     * Cleanup a specific generated site
+     */
+    async cleanupSpecificSite(userId, siteId) {
+        const sitePath = path.join(this.generatedDir, userId, siteId);
+        
+        try {
+            const stats = await fs.stat(sitePath);
+            if (stats.isDirectory()) {
+                await this.removeDirectory(sitePath);
+                console.log(`🗑️  Removed generated site: ${userId}/${siteId}`);
+                
+                // Record metrics
+                metricsCollector.recordUserActivity('immediate_cleanup_success', {
+                    user_id: userId,
+                    site_id: siteId
+                });
+            }
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                console.warn(`Failed to cleanup site ${sitePath}:`, error.message);
+            }
+        }
+    }
+    
+    /**
+     * Cleanup all files for memory pressure relief
+     */
+    async emergencyCleanup() {
+        console.log('🚨 EMERGENCY CLEANUP: Memory pressure detected, aggressive file cleanup');
+        
+        const stats = {
+            uploads: 0,
+            generated: 0,
+            startTime: Date.now()
+        };
+        
+        try {
+            // Clean ALL uploads immediately
+            const uploadsResult = await this.cleanupUploads(0, 0); // maxAge=0, maxFiles=0 
+            stats.uploads = uploadsResult.deleted;
+            
+            // Clean generated sites older than 1 hour
+            const generatedResult = await this.cleanupGenerated(1, 10); // 1 hour, max 10 sites
+            stats.generated = generatedResult.deleted;
+            
+            const duration = Date.now() - stats.startTime;
+            console.log(`🚨 Emergency cleanup completed: ${stats.uploads} uploads + ${stats.generated} sites removed (${duration}ms)`);
+            
+            // Record emergency cleanup metrics
+            metricsCollector.recordPerformance('emergency_cleanup', duration, {
+                uploads_deleted: stats.uploads,
+                sites_deleted: stats.generated,
+                trigger: 'memory_pressure'
+            });
+            
+            return stats;
+            
+        } catch (error) {
+            console.error('Emergency cleanup failed:', error);
+            return stats;
         }
     }
 }

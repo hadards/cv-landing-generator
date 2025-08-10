@@ -49,6 +49,105 @@ const getUserById = async (userId) => {
 };
 
 // ==========================================
+// API USAGE TRACKING (Free Tier Protection)
+// ==========================================
+
+const trackApiUsage = async (userId, apiType, requestCount = 1, tokenCount = 0) => {
+    try {
+        const today = new Date().toDateString();
+        
+        // Try to update existing record
+        const updateResult = await query(`
+            UPDATE api_usage 
+            SET request_count = request_count + $1, 
+                token_count = token_count + $2, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $3 AND api_type = $4 AND usage_date = $5
+            RETURNING *;
+        `, [requestCount, tokenCount, userId, apiType, today]);
+        
+        if (updateResult.rows.length === 0) {
+            // Create new record
+            const insertResult = await query(`
+                INSERT INTO api_usage (user_id, api_type, usage_date, request_count, token_count)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *;
+            `, [userId, apiType, today, requestCount, tokenCount]);
+            return insertResult.rows[0];
+        }
+        
+        return updateResult.rows[0];
+    } catch (error) {
+        // Table might not exist, create it
+        if (error.message.includes('relation "api_usage" does not exist')) {
+            await query(`
+                CREATE TABLE IF NOT EXISTS api_usage (
+                    id SERIAL PRIMARY KEY,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                    api_type VARCHAR(50) NOT NULL,
+                    usage_date DATE NOT NULL,
+                    request_count INTEGER DEFAULT 0,
+                    token_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, api_type, usage_date)
+                );
+                CREATE INDEX idx_api_usage_user_date ON api_usage(user_id, usage_date);
+            `);
+            // Retry the tracking
+            return await trackApiUsage(userId, apiType, requestCount, tokenCount);
+        }
+        console.error('Error tracking API usage:', error);
+        throw error;
+    }
+};
+
+const checkDailyApiUsage = async (userId, apiType) => {
+    try {
+        const today = new Date().toDateString();
+        const result = await query(`
+            SELECT request_count, token_count 
+            FROM api_usage 
+            WHERE user_id = $1 AND api_type = $2 AND usage_date = $3
+        `, [userId, apiType, today]);
+        
+        return result.rows[0] || { request_count: 0, token_count: 0 };
+    } catch (error) {
+        console.error('Error checking daily API usage:', error);
+        return { request_count: 0, token_count: 0 };
+    }
+};
+
+const checkApiLimits = async (userId, apiType) => {
+    const limits = {
+        'gemini': {
+            daily_requests: parseInt(process.env.GEMINI_DAILY_LIMIT) || 50,
+            monthly_tokens: parseInt(process.env.GEMINI_MONTHLY_TOKEN_LIMIT) || 100000
+        }
+    };
+    
+    if (!limits[apiType]) {
+        return { allowed: true, reason: 'No limits defined' };
+    }
+    
+    const usage = await checkDailyApiUsage(userId, apiType);
+    const limit = limits[apiType];
+    
+    if (usage.request_count >= limit.daily_requests) {
+        return { 
+            allowed: false, 
+            reason: `Daily limit of ${limit.daily_requests} requests exceeded. Used: ${usage.request_count}`,
+            resetTime: 'tomorrow'
+        };
+    }
+    
+    return { 
+        allowed: true, 
+        remaining: limit.daily_requests - usage.request_count 
+    };
+};
+
+// ==========================================
 // FILE UPLOAD SERVICES (replaces uploadedFiles Map)
 // ==========================================
 
@@ -261,6 +360,11 @@ module.exports = {
     // User services
     createOrUpdateUser,
     getUserById,
+    
+    // API Usage Tracking (Free Tier Protection)
+    trackApiUsage,
+    checkDailyApiUsage,
+    checkApiLimits,
     
     // File upload services (replaces uploadedFiles Map)
     saveFileUpload,

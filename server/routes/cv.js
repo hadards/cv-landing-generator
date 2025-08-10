@@ -851,6 +851,11 @@ router.get('/download',
         await archive.finalize();
         
         console.log(`Download completed: ${zipFileName}`);
+        
+        // Schedule immediate cleanup for ephemeral storage (free tier)
+        const fileCleanupManager = require('../lib/file-cleanup');
+        fileCleanupManager.scheduleImmediateCleanup(siteRecord.user_id, siteRecord.id);
+        console.log('📋 Scheduled cleanup after download for free tier storage');
 
     } catch (error) {
         console.error('Download error:', error);

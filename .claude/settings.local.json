@@ -30,7 +30,8 @@
       "Bash(npm start)",
       "Bash(npm run lint)",
       "Bash(npm run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm audit:*)"
     ],
     "deny": []
   }

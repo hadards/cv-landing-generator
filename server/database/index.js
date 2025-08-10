@@ -16,6 +16,11 @@ const initializeDatabase = () => {
     try {
         pool = new Pool({
             connectionString: process.env.DATABASE_URL,
+            // Free tier optimizations
+            max: parseInt(process.env.DATABASE_MAX_CONNECTIONS) || 5, // Limit connections for free tier
+            idleTimeoutMillis: parseInt(process.env.DATABASE_IDLE_TIMEOUT) || 30000, // 30 seconds
+            connectionTimeoutMillis: parseInt(process.env.DATABASE_CONNECTION_TIMEOUT) || 3000, // 3 seconds
+            acquireTimeoutMillis: parseInt(process.env.DATABASE_ACQUIRE_TIMEOUT) || 5000, // 5 seconds
             ssl: {
                 rejectUnauthorized: false // Required for Supabase connections
             }
