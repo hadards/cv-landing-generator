@@ -2,9 +2,9 @@
   "name": "cv-landing-generator",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && ng serve",
-    "dev:api": "node server/server.js",
+    "dev:backend": "node server/server.js",
     "build": "cd frontend && ng build",
     "db:test": "node -e \"require('dotenv').config(); const db = require('./server/database/index'); db.testConnection().then(r => console.log(r)).then(() => db.closeDatabase());\""
   },

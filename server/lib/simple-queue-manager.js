@@ -1,5 +1,5 @@
 // File: lib/simple-queue-manager.js
-// Simple queue manager for CV processing with database persistence
+// Simple queue manager for CV processing with database persistence and error mapping
 
 const { randomUUID } = require('crypto');
 
@@ -186,49 +186,47 @@ class SimpleQueueManager {
                 const processor = new IntelligentCVProcessor();
                 
                 // Get file info from cache
-                console.log('Attempting to get file from cache:', {
+                console.log('Attempting to get file for job:', {
                     fileId: job.file_id,
-                    hasCacheReference: !!this.fileCache,
-                    cacheType: this.fileCache ? this.fileCache.constructor.name : 'null',
-                    cacheInstanceId: this.fileCache ? JSON.stringify(Object.getOwnPropertyNames(this.fileCache)) : 'null'
+                    hasCacheReference: !!this.fileCache
                 });
                 
                 let fileInfo = null;
                 if (this.fileCache) {
-                    console.log('About to call this.fileCache.get() with fileId:', job.file_id);
                     fileInfo = this.fileCache.get(job.file_id);
-                    console.log('File cache lookup result:', {
-                        fileId: job.file_id,
-                        found: !!fileInfo,
-                        hasExtractedText: fileInfo?.extractedText ? fileInfo.extractedText.length : 0
-                    });
-                } else {
-                    // Fallback to accessing through routes module
-                    console.log('Using fallback file cache access (this.fileCache is null)');
-                    const cvRoutes = require('../routes/cv');
-                    fileInfo = cvRoutes.tempFileCache ? cvRoutes.tempFileCache.get(job.file_id) : null;
-                    console.log('Fallback cache lookup result:', {
-                        fileId: job.file_id,
-                        found: !!fileInfo,
-                        hasFallbackCache: !!cvRoutes.tempFileCache
-                    });
+                } 
+                
+                // FALLBACK: If not in cache, check database (hydration)
+                if (!fileInfo) {
+                    console.log(`Cache miss for file ${job.file_id}, attempting DB hydration...`);
+                    const { getFileUploadById } = require('../database/services');
+                    const dbFile = await getFileUploadById(job.file_id);
+                    
+                    if (dbFile) {
+                        // Reconstruct fileInfo from DB record
+                        fileInfo = {
+                            id: dbFile.id,
+                            originalName: dbFile.original_filename || dbFile.filename,
+                            filename: dbFile.filename,
+                            path: dbFile.filepath,
+                            mimetype: dbFile.mime_type,
+                            extractedText: dbFile.extracted_text,
+                            size: dbFile.file_size
+                        };
+                        
+                        // Re-populate cache to speed up subsequent accesses
+                        if (this.fileCache) {
+                            this.fileCache.set(job.file_id, fileInfo);
+                        }
+                        console.log('Job hydrated from database successfully');
+                    }
                 }
                 
                 if (!fileInfo) {
-                    console.error('File cache access failed:', {
-                        fileId: job.file_id,
-                        hasCacheReference: !!this.fileCache,
-                        fallbackAttempted: !this.fileCache
-                    });
-                    throw new Error('File not found in cache');
+                    throw new Error('File not found in cache or database');
                 }
                 
                 if (!fileInfo.extractedText) {
-                    console.error('File found but no extracted text:', {
-                        fileId: job.file_id,
-                        fileStatus: fileInfo.status,
-                        hasPath: !!fileInfo.path
-                    });
                     throw new Error('File found but no extracted text available');
                 }
 
@@ -249,13 +247,29 @@ class SimpleQueueManager {
             } catch (error) {
                 console.error(`Job ${job.id} failed:`, error);
                 
-                // Mark job as failed
+                // === ARCHITECTURAL FIX: Error Mapping ===
+                let userMessage = error.message;
+                
+                // Map infrastructure errors to friendly user messages
+                if (error.message.includes('connect to Ollama') || 
+                    error.message.includes('ECONNREFUSED') ||
+                    error.message.includes('fetch failed')) {
+                    userMessage = 'The AI service is temporarily unavailable. Please try again later.';
+                    console.warn('Infrastructure Error Detected:', error.message);
+                } else if (error.message.includes('timeout')) {
+                    userMessage = 'Processing timed out. The document may be too complex or the service is busy.';
+                } else if (error.message.includes('API_KEY_INVALID') || error.message.includes('QUOTA_EXCEEDED')) {
+                     userMessage = 'Service usage limit reached. Please try again tomorrow.';
+                     console.error('API Quota Error:', error.message);
+                }
+
+                // Mark job as failed with sanitized message
                 await this.db.query(`
                     UPDATE processing_jobs 
                     SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
                         error_message = $1
                     WHERE id = $2
-                `, [error.message, job.id]);
+                `, [userMessage, job.id]);
             }
 
         } catch (error) {

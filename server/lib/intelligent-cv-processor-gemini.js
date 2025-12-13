@@ -1,9 +1,14 @@
-// Intelligent CV Processor with Gemini + Session Memory
+// File: server/lib/intelligent-cv-processor-gemini.js
+// Intelligent CV Processor with Gemini + Session Memory + Model Fallback
 // Extends base processor with Gemini-specific implementations
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const IntelligentCVProcessorBase = require('./intelligent-cv-processor-base');
 const { trackApiUsage, checkApiLimits } = require('../database/services');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+const TextCleaner = require('./utils/text-cleaner');
 
 class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
     constructor(config = {}) {
@@ -17,8 +22,30 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
         }
         
         this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        
+        // Define model fallback chain (Priority -> Stability -> Legacy)
+        this.modelChain = [
+            'models/gemini-2.5-flash',
+            'gemini-1.0-pro-latest'
+
+//            'gemini-pro' // Fallback to 1.0 Pro
+        ];
+        
+        // Use configured model or start with the first in chain
+        this.currentModelName = config.model || this.modelChain[0];
+        this.initializeModel(this.currentModelName);
+        
+        console.log(`LLM Client: Gemini initialized with ${this.currentModelName}`);
+        console.log('Session Memory: Enabled');
+    }
+
+    /**
+     * Initialize the Gemini model instance
+     */
+    initializeModel(modelName) {
+        console.log(`Configuring Gemini model: ${modelName}`);
         this.model = this.genAI.getGenerativeModel({ 
-            model: config.model || 'gemini-1.5-flash',
+            model: modelName,
             generationConfig: {
                 temperature: 0.1, // Low temperature for consistent extraction
                 topP: 0.8,
@@ -26,17 +53,50 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
                 maxOutputTokens: 8192,
             }
         });
-        
-        console.log('LLM Client: Gemini (gemini-1.5-flash)');
-        console.log('Session Memory: Enabled');
-        console.log('Intelligent CV Processor ready');
+        this.currentModelName = modelName;
+    }
+
+    /**
+     * Execute prompt with automatic model fallback for 404/Not Found errors
+     */
+    async generateContentSafe(prompt) {
+        // Try with current model first
+        try {
+            return await this.retryWithBackoff(async () => {
+                return await this.model.generateContent(prompt);
+            });
+        } catch (error) {
+            // Check if error is related to model availability (404 Not Found)
+            const isModelError = error.message.includes('404') || 
+                               error.message.includes('not found') || 
+                               error.message.includes('not supported');
+
+            if (isModelError) {
+                console.warn(`⚠️ Model ${this.currentModelName} failed: ${error.message}`);
+                
+                // Try to find next model in chain
+                const currentIndex = this.modelChain.indexOf(this.currentModelName);
+                if (currentIndex !== -1 && currentIndex < this.modelChain.length - 1) {
+                    const nextModel = this.modelChain[currentIndex + 1];
+                    console.log(`🔄 Switching fallback model: ${this.currentModelName} -> ${nextModel}`);
+                    
+                    this.initializeModel(nextModel);
+                    
+                    // Recursive retry with new model
+                    return this.generateContentSafe(prompt);
+                }
+            }
+            
+            // If not a model error or no more fallbacks, throw original error
+            throw error;
+        }
     }
 
     /**
      * Get processor name for metadata
      */
     getProcessorName() {
-        return 'gemini-intelligent';
+        return `gemini-intelligent-${this.currentModelName}`;
     }
 
     /**
@@ -60,6 +120,9 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
                 case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
                     extractedText = await this.extractFromWord(filePath);
                     break;
+                case 'text/plain':
+                     extractedText = fs.readFileSync(filePath, 'utf8');
+                     break;
                 default:
                     throw new Error('Unsupported file type: ' + mimeType);
             }
@@ -128,7 +191,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
             { 
                 cv_length: cleanedText.length,
                 processing_start: new Date().toISOString(),
-                processor_version: '2.0_intelligent_gemini'
+                processor_version: `2.0_intelligent_${this.currentModelName}`
             }
         );
         
@@ -175,7 +238,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
             'basic_info', 
             basicInfo, 
             this.calculateConfidence(basicInfo),
-            { step: 1, method: 'gemini_structured' }
+            { step: 1, method: 'gemini_structured', model: this.currentModelName }
         );
         console.log(`Basic info extracted: ${basicInfo.name} (${basicInfo.currentTitle})`);
         
@@ -188,7 +251,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
             'professional', 
             professionalData, 
             this.calculateConfidence(professionalData),
-            { step: 2, method: 'gemini_context_aware' }
+            { step: 2, method: 'gemini_context_aware', model: this.currentModelName }
         );
         console.log(`Professional data: ${professionalData.experience?.length || 0} jobs, ${professionalData.skills?.technical?.length || 0} skills`);
         
@@ -201,7 +264,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
             'additional', 
             additionalData, 
             this.calculateConfidence(additionalData),
-            { step: 3, method: 'gemini_enhanced' }
+            { step: 3, method: 'gemini_enhanced', model: this.currentModelName }
         );
         console.log(`Additional data: ${additionalData.projects?.length || 0} projects, ${additionalData.certifications?.length || 0} certs`);
         
@@ -214,6 +277,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
             intelligentProcessor: true,
             sessionMemoryUsed: true,
             llmProvider: 'gemini',
+            modelUsed: this.currentModelName,
             totalSteps: 3,
             processingTime: new Date().toISOString()
         };
@@ -243,6 +307,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
                                   error.message.includes('ENOTFOUND') ||
                                   error.code === 'ENOTFOUND';
                 
+                // Do NOT retry 400/404 errors here (those are handled by model fallback)
                 if (!isRetryable) {
                     throw error;
                 }
@@ -293,9 +358,8 @@ REQUIRED JSON FORMAT:
         `;
 
         try {
-            const result = await this.retryWithBackoff(async () => {
-                return await this.model.generateContent(prompt);
-            });
+            // Use the safe generation method with fallback
+            const result = await this.generateContentSafe(prompt);
             const response = result.response;
             const text = response.text();
             
@@ -319,13 +383,14 @@ REQUIRED JSON FORMAT:
         } catch (error) {
             console.error('Basic info extraction failed:', error);
             
-            // If Gemini is completely unavailable or network issue, try to extract basic info using simple text parsing
-            if (error.message.includes('503') || 
+            // Fallback for complete service outage
+            const isInfrastructureError = error.message.includes('503') || 
                 error.message.includes('overloaded') ||
                 error.message.includes('fetch failed') ||
                 error.message.includes('ENOTFOUND') ||
-                error.message.includes('network') ||
-                error.code === 'ENOTFOUND') {
+                error.message.includes('network');
+                
+            if (isInfrastructureError) {
                 console.log('Gemini/network unavailable, attempting fallback extraction...');
                 return this.extractBasicInfoFallback(cvText);
             }
@@ -399,9 +464,8 @@ REQUIRED JSON FORMAT:
         `;
 
         try {
-            const result = await this.retryWithBackoff(async () => {
-                return await this.model.generateContent(prompt);
-            });
+            // Use safe generation with fallback
+            const result = await this.generateContentSafe(prompt);
             const response = result.response;
             const text = response.text();
             
@@ -416,13 +480,14 @@ REQUIRED JSON FORMAT:
         } catch (error) {
             console.error('Professional data extraction failed:', error);
             
-            // If Gemini is unavailable or network issue, use fallback
-            if (error.message.includes('503') || 
+            // Fallback for service outage
+            const isInfrastructureError = error.message.includes('503') || 
                 error.message.includes('overloaded') ||
                 error.message.includes('fetch failed') ||
                 error.message.includes('ENOTFOUND') ||
-                error.message.includes('network') ||
-                error.code === 'ENOTFOUND') {
+                error.message.includes('network');
+                
+            if (isInfrastructureError) {
                 console.log('Gemini/network unavailable, using professional data fallback...');
                 return this.extractProfessionalFallback(cvText);
             }
@@ -511,9 +576,8 @@ REQUIRED JSON FORMAT:
         `;
 
         try {
-            const result = await this.retryWithBackoff(async () => {
-                return await this.model.generateContent(prompt);
-            });
+            // Use safe generation with fallback
+            const result = await this.generateContentSafe(prompt);
             const response = result.response;
             const text = response.text();
             
@@ -785,9 +849,7 @@ REQUIRED JSON FORMAT:
      */
     async testConnection() {
         try {
-            const result = await this.retryWithBackoff(async () => {
-                return await this.model.generateContent("Say 'Hello from IntelligentCVProcessorGemini'");
-            });
+            const result = await this.generateContentSafe("Say 'Hello from IntelligentCVProcessorGemini'");
             const response = result.response;
             const text = response.text();
             

@@ -132,7 +132,9 @@ CREATE TABLE processing_jobs (
     error_message TEXT,
     
     -- Timing for free tier management
+-- Timing for free tier management
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,
     
@@ -341,3 +343,23 @@ ORDER BY tablename;
 -- 
 -- Ready for production use!
 -- ============================================================================
+
+-- 1. Enable RLS on all existing tables
+-- This immediately blocks all public API access to these tables.
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE file_uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_sites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cv_processing_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE processing_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE processing_jobs ENABLE ROW LEVEL SECURITY;
+
+-- 2. (Optional but recommended) Explicitly verify no policies exist
+-- If you had created policies before, you might want to drop them to ensure
+-- strictly "Backend Only" access.
+-- DROP POLICY IF EXISTS "Policy Name" ON table_name;
+
+-- 3. Verify RLS status
+SELECT tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public';

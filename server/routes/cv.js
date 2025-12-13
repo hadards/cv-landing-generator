@@ -1,4 +1,4 @@
-// File: routes/cv.js
+// File: server/routes/cv.js
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
@@ -17,7 +17,9 @@ const {
     updateSiteDeployment,
     logProcessing, 
     createOrUpdateUser,
-    getUserById 
+    getUserById,
+    saveFileUpload,    // Added for persistence
+    updateFileUpload   // Added for persistence
 } = require('../database/services');
 const { 
     monitorFileUpload, 
@@ -306,6 +308,25 @@ router.post('/upload', verifyTokenEnhanced, upload.single('cvFile'), validateFil
         // Store temporarily for processing
         tempFileCache.set(fileInfo.id, fileInfo);
         
+        // PERSISTENCE: Save to Database immediately
+        try {
+            await saveFileUpload({
+                id: fileInfo.id,
+                user_id: req.user.userId,
+                filename: fileInfo.filename,
+                original_filename: fileInfo.originalName, // Note: services.js needs to handle this or ignore it
+                filepath: fileInfo.path,
+                file_size: fileInfo.size,
+                mime_type: fileInfo.mimetype,
+                extracted_text: null,
+                structured_data: null
+            });
+            console.log('File metadata persisted to DB:', fileInfo.id);
+        } catch (dbError) {
+            console.error('Failed to persist file upload to DB:', dbError.message);
+            // Continue processing even if DB save fails, relying on cache as fallback
+        }
+        
         // Log file upload to database
         await logProcessing(req.user.userId, 'file_upload', 'success', null, null);
 
@@ -367,6 +388,18 @@ router.post('/process',
         // Store extracted text in file info for queue processing
         fileInfo.extractedText = extractedText;
         tempFileCache.set(fileId, fileInfo);
+
+        // PERSISTENCE: Update Database with extracted text
+        try {
+            await updateFileUpload(fileId, {
+                extracted_text: extractedText,
+                structured_data: {} // Initialize structured data
+            });
+            console.log('Extracted text persisted to DB for file:', fileId);
+        } catch (dbError) {
+            console.error('Failed to update file upload in DB:', dbError.message);
+            // Continue processing
+        }
 
         // Add job to queue
         console.log('Adding CV processing job to queue...');
@@ -461,7 +494,6 @@ router.post('/generate',
 
         // Create site record in database first to get the ID
         const siteName = `${structuredData.personalInfo.name} CV Landing Page`;
-        const repoName = `${structuredData.personalInfo.name.toLowerCase().replace(/\s+/g, '-')}-cv-site`;
         
         const siteRecord = await saveGeneratedSite({
             id: randomUUID(),
