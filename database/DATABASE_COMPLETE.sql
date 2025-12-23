@@ -7,6 +7,8 @@
 -- ============================================================================
 
 -- Clean start - drop all existing tables and functions
+DROP TABLE IF EXISTS rate_limits CASCADE;
+DROP TABLE IF EXISTS api_usage CASCADE;
 DROP TABLE IF EXISTS processing_jobs CASCADE;
 DROP TABLE IF EXISTS processing_logs CASCADE;
 DROP TABLE IF EXISTS cv_processing_sessions CASCADE;
@@ -125,22 +127,50 @@ CREATE TABLE processing_jobs (
     job_type VARCHAR(50) NOT NULL DEFAULT 'cv_processing',
     status VARCHAR(20) NOT NULL DEFAULT 'queued', -- 'queued', 'processing', 'completed', 'failed'
     position INTEGER DEFAULT 0, -- Queue position (1, 2, 3... or 0 when processing)
-    
+
     -- Job data and results
     file_id TEXT,
     structured_data JSONB,
     error_message TEXT,
-    
+
     -- Timing for free tier management
--- Timing for free tier management
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,
-    
+
     -- Free tier tracking
     processing_time_seconds INTEGER DEFAULT 0,
     estimated_wait_minutes INTEGER DEFAULT 0
+);
+
+-- ============================================================================
+-- SECURITY TABLES
+-- ============================================================================
+
+-- API usage tracking table - for free tier protection and monitoring
+CREATE TABLE api_usage (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    api_type VARCHAR(50) NOT NULL,
+    usage_date DATE NOT NULL,
+    request_count INTEGER DEFAULT 0,
+    token_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, api_type, usage_date)
+);
+
+-- Rate limits table - for per-user rate limiting
+CREATE TABLE rate_limits (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    endpoint VARCHAR(255) NOT NULL,
+    request_count INTEGER DEFAULT 1,
+    window_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, endpoint, window_start)
 );
 
 -- ============================================================================
@@ -185,6 +215,16 @@ CREATE INDEX idx_processing_jobs_status ON processing_jobs(status);
 CREATE INDEX idx_processing_jobs_position ON processing_jobs(position);
 CREATE INDEX idx_processing_jobs_created ON processing_jobs(created_at);
 
+-- API usage indexes
+CREATE INDEX idx_api_usage_user_id ON api_usage(user_id);
+CREATE INDEX idx_api_usage_user_date ON api_usage(user_id, usage_date);
+CREATE INDEX idx_api_usage_created ON api_usage(created_at);
+
+-- Rate limits indexes
+CREATE INDEX idx_rate_limits_user_id ON rate_limits(user_id);
+CREATE INDEX idx_rate_limits_user_endpoint ON rate_limits(user_id, endpoint, window_start);
+CREATE INDEX idx_rate_limits_cleanup ON rate_limits(created_at);
+
 -- ============================================================================
 -- TRIGGERS AND FUNCTIONS
 -- ============================================================================
@@ -219,8 +259,16 @@ CREATE TRIGGER update_user_preferences_updated_at
     BEFORE UPDATE ON user_preferences 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_processing_jobs_updated_at 
-    BEFORE UPDATE ON processing_jobs 
+CREATE TRIGGER update_processing_jobs_updated_at
+    BEFORE UPDATE ON processing_jobs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_api_usage_updated_at
+    BEFORE UPDATE ON api_usage
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_rate_limits_updated_at
+    BEFORE UPDATE ON rate_limits
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
@@ -253,13 +301,15 @@ DECLARE
     tbl_name TEXT;
     table_count INTEGER;
     required_tables TEXT[] := ARRAY[
-        'users', 
-        'file_uploads', 
-        'user_sites', 
+        'users',
+        'file_uploads',
+        'user_sites',
         'cv_processing_sessions',
-        'processing_logs', 
+        'processing_logs',
         'user_preferences',
-        'processing_jobs'
+        'processing_jobs',
+        'api_usage',
+        'rate_limits'
     ];
 BEGIN
     -- Check each required table
@@ -293,12 +343,14 @@ BEGIN
         RAISE NOTICE '  • CV file upload and processing';
         RAISE NOTICE '  • Landing page generation and hosting';
         RAISE NOTICE '  • Session-based CV processing';
+        RAISE NOTICE '  • API usage tracking and rate limiting';
+        RAISE NOTICE '  • Per-user security controls';
         RAISE NOTICE '  • Performance indexes on all tables';
         RAISE NOTICE '  • Automatic timestamp updates';
         RAISE NOTICE '  • Session cleanup functionality';
         RAISE NOTICE '';
         RAISE NOTICE 'Extensions: uuid-ossp, pgcrypto ✅';
-        RAISE NOTICE 'Triggers: 5 automatic timestamp triggers ✅';
+        RAISE NOTICE 'Triggers: 8 automatic timestamp triggers ✅';
         RAISE NOTICE 'Indexes: Performance indexes on all tables ✅';
         RAISE NOTICE '';
         RAISE NOTICE '🚀 Database is ready for CV Landing Generator!';
@@ -324,7 +376,7 @@ ORDER BY tablename;
 -- ============================================================================
 -- This schema supports:
 -- ✅ User authentication via Google OAuth
--- ✅ GitHub integration and repository publishing  
+-- ✅ GitHub integration and repository publishing
 -- ✅ CV file upload with validation
 -- ✅ AI-powered CV processing and structuring
 -- ✅ Landing page generation from templates
@@ -332,13 +384,15 @@ ORDER BY tablename;
 -- ✅ Comprehensive logging and monitoring
 -- ✅ User preferences and settings
 -- ✅ Processing queue with position tracking
--- ✅ Free tier rate limiting support
+-- ✅ API usage tracking and monitoring
+-- ✅ Per-user rate limiting (database-backed)
+-- ✅ Security event tracking
 -- ✅ Performance optimization via indexes
 -- ✅ Automatic maintenance and cleanup
--- 
--- Total Tables: 7
--- Total Indexes: 20
--- Total Triggers: 6
+--
+-- Total Tables: 9 (7 core + 2 security)
+-- Total Indexes: 30
+-- Total Triggers: 8
 -- Total Functions: 2
 -- 
 -- Ready for production use!
@@ -353,6 +407,8 @@ ALTER TABLE cv_processing_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processing_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processing_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 
 -- 2. (Optional but recommended) Explicitly verify no policies exist
 -- If you had created policies before, you might want to drop them to ensure

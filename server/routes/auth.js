@@ -2,8 +2,19 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const { createOrUpdateUser, getUserById } = require('../database/services');
+const {
+    createOrUpdateUser,
+    getUserById,
+    exportUserData,
+    deleteUserAccount
+} = require('../database/services');
 const { recordUserLogin, recordUserRegistration } = require('../middleware/monitoring');
+const {
+    verifyTokenEnhanced,
+    refreshAccessToken,
+    logout
+} = require('../middleware/enhanced-auth');
+const metricsCollector = require('../lib/metrics-collector');
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -106,9 +117,16 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// Logout endpoint
-router.post('/logout', async (req, res) => {
+// Logout endpoint (enhanced with token revocation)
+router.post('/logout', verifyTokenEnhanced, async (req, res) => {
     try {
+        const { userId, sessionId, tokenId } = req.user;
+
+        if (sessionId && tokenId) {
+            logout(userId, sessionId, tokenId);
+            console.log(`User ${userId} logged out, session ${sessionId} terminated`);
+        }
+
         res.status(200).json({
             success: true,
             message: 'Logout successful'
@@ -117,6 +135,33 @@ router.post('/logout', async (req, res) => {
         console.error('Logout error:', error);
         res.status(500).json({
             error: 'Logout failed',
+            message: error.message
+        });
+    }
+});
+
+// Token refresh endpoint
+router.post('/refresh-token', async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+
+        if (!refreshToken) {
+            return res.status(400).json({ error: 'Refresh token is required' });
+        }
+
+        const tokens = await refreshAccessToken(refreshToken);
+
+        res.status(200).json({
+            success: true,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            expiresIn: tokens.expiresIn
+        });
+
+    } catch (error) {
+        console.error('Token refresh error:', error);
+        res.status(401).json({
+            error: 'Token refresh failed',
             message: error.message
         });
     }
@@ -161,6 +206,66 @@ router.get('/user', async (req, res) => {
         console.error('User info error:', error);
         res.status(500).json({
             error: 'Failed to get user info',
+            message: error.message
+        });
+    }
+});
+
+// Export user data endpoint (GDPR compliance)
+router.get('/export-data', verifyTokenEnhanced, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        console.log(`Data export requested by user: ${userId}`);
+
+        const exportData = await exportUserData(userId);
+
+        metricsCollector.recordSecurityEvent('data_export', { userId });
+
+        res.status(200).json({
+            success: true,
+            data: exportData
+        });
+
+    } catch (error) {
+        console.error('Data export error:', error);
+        res.status(500).json({
+            error: 'Failed to export user data',
+            message: error.message
+        });
+    }
+});
+
+// Delete user account endpoint (GDPR right to be forgotten)
+router.delete('/delete-account', verifyTokenEnhanced, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { confirmation } = req.body;
+
+        // Require explicit confirmation
+        if (confirmation !== 'DELETE MY ACCOUNT') {
+            return res.status(400).json({
+                error: 'Confirmation required',
+                message: 'Please send confirmation: "DELETE MY ACCOUNT" in the request body'
+            });
+        }
+
+        console.log(`Account deletion requested by user: ${userId}`);
+
+        const result = await deleteUserAccount(userId);
+
+        metricsCollector.recordSecurityEvent('account_deletion', { userId });
+
+        res.status(200).json({
+            success: true,
+            message: 'Account successfully deleted',
+            deletedAt: result.deletedAt
+        });
+
+    } catch (error) {
+        console.error('Account deletion error:', error);
+        res.status(500).json({
+            error: 'Failed to delete account',
             message: error.message
         });
     }

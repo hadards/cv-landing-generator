@@ -11,6 +11,7 @@ const { body, param, query, validationResult } = require('express-validator');
 const IntelligentCVProcessor = require('../lib/intelligent-cv-processor');
 const TemplateProcessor = require('../lib/template-processor');
 const securePaths = require('../lib/utils/secure-paths');
+const InputSanitizer = require('../lib/utils/input-sanitizer');
 const { 
     saveGeneratedSite, 
     getGeneratedSiteById, 
@@ -21,13 +22,15 @@ const {
     saveFileUpload,    // Added for persistence
     updateFileUpload   // Added for persistence
 } = require('../database/services');
-const { 
-    monitorFileUpload, 
-    recordCVProcessing, 
-    recordLandingPageGeneration 
+const {
+    monitorFileUpload,
+    recordCVProcessing,
+    recordLandingPageGeneration
 } = require('../middleware/monitoring');
 const { authorizeResourceOwnership, authorizeFileAccess } = require('../middleware/authorization');
 const { verifyTokenEnhanced } = require('../middleware/enhanced-auth');
+const { cvSecurity, rateLimitOnly } = require('../middleware/security');
+const metricsCollector = require('../lib/metrics-collector');
 
 const router = express.Router();
 
@@ -68,6 +71,23 @@ const upload = multer({
         }
     }
 });
+
+// Helper function to calculate Shannon entropy (for malware detection)
+function calculateEntropy(buffer) {
+    const frequencies = new Map();
+    for (let i = 0; i < buffer.length; i++) {
+        const byte = buffer[i];
+        frequencies.set(byte, (frequencies.get(byte) || 0) + 1);
+    }
+
+    let entropy = 0;
+    for (const count of frequencies.values()) {
+        const probability = count / buffer.length;
+        entropy -= probability * Math.log2(probability);
+    }
+
+    return entropy;
+}
 
 // File content validation middleware
 const validateFileContent = async (req, res, next) => {
@@ -148,23 +168,75 @@ const validateFileContent = async (req, res, next) => {
             });
         }
         
-        // Check for potential malicious content patterns
-        const fileContent = buffer.toString('utf8', 0, Math.min(1024, buffer.length));
+        // ENHANCED: Check for potential malicious content patterns (deeper scan)
+        const scanSize = Math.min(8192, buffer.length); // Scan first 8KB
+        const fileContent = buffer.toString('utf8', 0, scanSize);
+
+        // Enhanced malicious patterns detection
         const maliciousPatterns = [
             /<script/i,
             /javascript:/i,
             /vbscript:/i,
             /onload=/i,
-            /onerror=/i
+            /onerror=/i,
+            /onclick=/i,
+            /onmouseover=/i,
+            /<iframe/i,
+            /<embed/i,
+            /<object/i,
+            /eval\(/i,
+            /Function\(/i,
+            /\.exe\b/i,
+            /\.bat\b/i,
+            /\.cmd\b/i,
+            /\.sh\b/i,
+            /base64.*eval/i
         ];
-        
+
         if (maliciousPatterns.some(pattern => pattern.test(fileContent))) {
+            metricsCollector.recordSecurityEvent('malicious_file_upload', {
+                filename: file.originalname,
+                mimetype: file.mimetype,
+                size: buffer.length
+            });
             await fs.promises.unlink(filePath).catch(() => {});
-            return res.status(400).json({ 
-                error: 'File contains potentially malicious content.' 
+            return res.status(400).json({
+                error: 'File contains potentially malicious content.'
             });
         }
-        
+
+        // ENHANCED: PDF-specific validation
+        if (detectedType === 'pdf') {
+            // Check for PDF with JavaScript (common attack vector)
+            if (buffer.toString('utf8').includes('/JavaScript')) {
+                console.log('PDF contains JavaScript - potential security risk');
+                await fs.promises.unlink(filePath).catch(() => {});
+                return res.status(400).json({
+                    error: 'PDF files with JavaScript are not allowed for security reasons.'
+                });
+            }
+
+            // Check for embedded files in PDF
+            if (buffer.toString('utf8').includes('/EmbeddedFile')) {
+                console.log('PDF contains embedded files - potential security risk');
+                await fs.promises.unlink(filePath).catch(() => {});
+                return res.status(400).json({
+                    error: 'PDF files with embedded files are not allowed for security reasons.'
+                });
+            }
+        }
+
+        // ENHANCED: Check file entropy (high entropy may indicate encrypted/packed malware)
+        const entropy = calculateEntropy(buffer.slice(0, Math.min(4096, buffer.length)));
+        if (entropy > 7.5) {
+            console.log('File has unusually high entropy:', entropy);
+            // Don't reject automatically but log warning
+            console.warn('Warning: High entropy file detected - possible encryption or compression');
+        }
+
+        // Sanitize filename before proceeding
+        file.originalname = InputSanitizer.sanitizeFilename(file.originalname);
+
         next();
     } catch (error) {
         console.error('File validation error:', error);
@@ -282,8 +354,8 @@ queueManager = new SimpleQueueManager({ query: dbQuery }, tempFileCache);
 // Export for external access if needed
 module.exports.tempFileCache = tempFileCache;
 
-// File upload endpoint
-router.post('/upload', verifyTokenEnhanced, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
+// File upload endpoint (uses rateLimitOnly - file uploads are exempt from CSRF)
+router.post('/upload', verifyTokenEnhanced, ...rateLimitOnly, upload.single('cvFile'), validateFileContent, monitorFileUpload, async (req, res) => {
     try {
         console.log('Upload endpoint hit, file:', req.file ? req.file.originalname : 'no file');
         const uploadedFile = req.file;
@@ -346,8 +418,9 @@ router.post('/upload', verifyTokenEnhanced, upload.single('cvFile'), validateFil
 });
 
 // Process CV file endpoint
-router.post('/process', 
+router.post('/process',
     verifyTokenEnhanced,
+    ...rateLimitOnly,
     [
         body('fileId').isString().trim().isLength({ min: 1, max: 100 })
             .withMessage('Valid file ID is required'),
@@ -464,8 +537,9 @@ router.get('/status',
 });
 
 // Generate landing page endpoint
-router.post('/generate', 
+router.post('/generate',
     verifyTokenEnhanced,
+    ...rateLimitOnly,
     [
         body('structuredData').isObject().withMessage('Structured CV data is required'),
         body('structuredData.personalInfo').isObject().withMessage('Personal information is required'),
@@ -477,8 +551,8 @@ router.post('/generate',
     handleValidationErrors,
     async (req, res) => {
     try {
-        const { structuredData } = req.body;
-        
+        let { structuredData } = req.body;
+
         if (!structuredData) {
             return res.status(400).json({ error: 'Structured CV data is required' });
         }
@@ -488,13 +562,24 @@ router.post('/generate',
             return res.status(400).json({ error: 'Invalid CV data - missing required personal information' });
         }
 
+        // SECURITY: Sanitize all user input to prevent XSS attacks
+        structuredData = InputSanitizer.sanitizeCVData(structuredData);
+
+        // Validate profile picture if present
+        if (structuredData.personalInfo?.profilePicture) {
+            const validation = InputSanitizer.validateBase64Image(structuredData.personalInfo.profilePicture);
+            if (!validation.valid) {
+                return res.status(400).json({ error: validation.error });
+            }
+        }
+
         console.log('Generating landing page for:', structuredData.personalInfo.name);
         console.log('User ID:', req.user.userId);
         const generationStartTime = Date.now();
 
         // Create site record in database first to get the ID
         const siteName = `${structuredData.personalInfo.name} CV Landing Page`;
-        
+
         const siteRecord = await saveGeneratedSite({
             id: randomUUID(),
             user_id: req.user.userId,

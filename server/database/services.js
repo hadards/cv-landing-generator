@@ -1,6 +1,8 @@
 // UNIFIED Database Services - ONE file for all database operations
 // NO DUPLICATES - uses ONLY user_sites table (not generated_sites)
 const { query } = require('./index');
+const encryptionService = require('../lib/utils/encryption');
+const InputSanitizer = require('../lib/utils/input-sanitizer');
 
 // ==========================================
 // USER SERVICES
@@ -8,29 +10,49 @@ const { query } = require('./index');
 
 const createOrUpdateUser = async (userData) => {
     const { email, name, google_id, github_username, github_token, profile_picture_url } = userData;
-    
+
     try {
+        // Sanitize inputs
+        const sanitizedEmail = InputSanitizer.sanitizeEmail(email);
+        const sanitizedName = InputSanitizer.sanitizeText(name, 255);
+        const sanitizedUsername = github_username ? InputSanitizer.sanitizeText(github_username, 255) : null;
+
+        // Encrypt GitHub token if present
+        const encryptedToken = github_token ? encryptionService.encrypt(github_token) : null;
+
         const existing = await query(
-            'SELECT * FROM users WHERE email = $1 OR google_id = $2', 
-            [email, google_id]
+            'SELECT * FROM users WHERE email = $1 OR google_id = $2',
+            [sanitizedEmail, google_id]
         );
-        
+
         if (existing.rows.length > 0) {
             const result = await query(`
-                UPDATE users 
-                SET name = $1, google_id = $2, github_username = $3, 
+                UPDATE users
+                SET name = $1, google_id = $2, github_username = $3,
                     github_token = $4, profile_picture_url = $5, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $6
                 RETURNING *;
-            `, [name, google_id, github_username, github_token, profile_picture_url, existing.rows[0].id]);
-            return result.rows[0];
+            `, [sanitizedName, google_id, sanitizedUsername, encryptedToken, profile_picture_url, existing.rows[0].id]);
+
+            // Decrypt token before returning
+            const user = result.rows[0];
+            if (user.github_token) {
+                user.github_token = encryptionService.decrypt(user.github_token);
+            }
+            return user;
         } else {
             const result = await query(`
                 INSERT INTO users (email, name, google_id, github_username, github_token, profile_picture_url)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *;
-            `, [email, name, google_id, github_username, github_token, profile_picture_url]);
-            return result.rows[0];
+            `, [sanitizedEmail, sanitizedName, google_id, sanitizedUsername, encryptedToken, profile_picture_url]);
+
+            // Decrypt token before returning
+            const user = result.rows[0];
+            if (user.github_token) {
+                user.github_token = encryptionService.decrypt(user.github_token);
+            }
+            return user;
         }
     } catch (error) {
         console.error('Error creating/updating user:', error);
@@ -41,7 +63,14 @@ const createOrUpdateUser = async (userData) => {
 const getUserById = async (userId) => {
     try {
         const result = await query('SELECT * FROM users WHERE id = $1', [userId]);
-        return result.rows[0] || null;
+        const user = result.rows[0] || null;
+
+        // Decrypt GitHub token before returning
+        if (user && user.github_token) {
+            user.github_token = encryptionService.decrypt(user.github_token);
+        }
+
+        return user;
     } catch (error) {
         console.error('Error getting user by ID:', error);
         throw error;
@@ -78,25 +107,6 @@ const trackApiUsage = async (userId, apiType, requestCount = 1, tokenCount = 0) 
         
         return updateResult.rows[0];
     } catch (error) {
-        // Table might not exist, create it
-        if (error.message.includes('relation "api_usage" does not exist')) {
-            await query(`
-                CREATE TABLE IF NOT EXISTS api_usage (
-                    id SERIAL PRIMARY KEY,
-                    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                    api_type VARCHAR(50) NOT NULL,
-                    usage_date DATE NOT NULL,
-                    request_count INTEGER DEFAULT 0,
-                    token_count INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(user_id, api_type, usage_date)
-                );
-                CREATE INDEX idx_api_usage_user_date ON api_usage(user_id, usage_date);
-            `);
-            // Retry the tracking
-            return await trackApiUsage(userId, apiType, requestCount, tokenCount);
-        }
         console.error('Error tracking API usage:', error);
         throw error;
     }
@@ -355,32 +365,215 @@ const createDefaultPreferences = async (userId) => {
     }
 };
 
+// ==========================================
+// DATA PRIVACY & SECURITY (GDPR Compliance)
+// ==========================================
+
+/**
+ * Export all user data (GDPR compliance)
+ */
+const exportUserData = async (userId) => {
+    try {
+        // Get user profile
+        const user = await getUserById(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Get user sites
+        const sites = await getUserSites(userId);
+
+        // Get processing logs
+        const logsResult = await query(
+            'SELECT operation, status, error_message, created_at FROM processing_logs WHERE user_id = $1 ORDER BY created_at DESC',
+            [userId]
+        );
+
+        // Get API usage
+        const apiUsageResult = await query(
+            'SELECT api_type, usage_date, request_count, token_count FROM api_usage WHERE user_id = $1 ORDER BY usage_date DESC',
+            [userId]
+        );
+
+        // Prepare export data (excluding sensitive encrypted data)
+        const exportData = {
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                github_username: user.github_username,
+                created_at: user.created_at,
+                updated_at: user.updated_at
+            },
+            sites: sites.map(site => ({
+                id: site.id,
+                site_name: site.site_name,
+                github_url: site.github_url,
+                pages_url: site.pages_url,
+                cv_data: site.cv_data,
+                deployment_status: site.deployment_status,
+                created_at: site.created_at
+            })),
+            processingLogs: logsResult.rows,
+            apiUsage: apiUsageResult.rows,
+            exportedAt: new Date().toISOString()
+        };
+
+        // Log the export
+        await logProcessing(userId, 'data_export', 'success');
+
+        return exportData;
+    } catch (error) {
+        console.error('Error exporting user data:', error);
+        await logProcessing(userId, 'data_export', 'failed', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Delete user account and all associated data (GDPR right to be forgotten)
+ */
+const deleteUserAccount = async (userId) => {
+    try {
+        // Get user first to confirm exists
+        const user = await getUserById(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Delete in correct order due to foreign key constraints
+        // All cascade deletes will handle related data automatically
+
+        // Log the deletion before removing
+        await logProcessing(userId, 'account_deletion', 'started');
+
+        // Get generated site folders for cleanup
+        const sites = await getUserSites(userId);
+        const fs = require('fs').promises;
+        const path = require('path');
+
+        // Delete physical files for generated sites
+        for (const site of sites) {
+            if (site.folder_path) {
+                try {
+                    await fs.rm(site.folder_path, { recursive: true, force: true });
+                    console.log(`Deleted site folder: ${site.folder_path}`);
+                } catch (err) {
+                    console.warn(`Could not delete folder ${site.folder_path}:`, err.message);
+                }
+            }
+        }
+
+        // Delete user (CASCADE will delete all related records)
+        await query('DELETE FROM users WHERE id = $1', [userId]);
+
+        console.log(`User account deleted: ${userId}`);
+
+        return {
+            success: true,
+            deletedUserId: userId,
+            deletedAt: new Date().toISOString()
+        };
+    } catch (error) {
+        console.error('Error deleting user account:', error);
+        throw error;
+    }
+};
+
+/**
+ * Anonymize old user data (data retention policy)
+ */
+const anonymizeOldData = async (retentionDays = 365) => {
+    try {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+        // Anonymize processing logs older than retention period
+        const result = await query(`
+            UPDATE processing_logs
+            SET user_id = NULL
+            WHERE created_at < $1 AND user_id IS NOT NULL
+        `, [cutoffDate]);
+
+        console.log(`Anonymized ${result.rowCount} old processing logs`);
+
+        return {
+            anonymizedLogs: result.rowCount,
+            cutoffDate: cutoffDate.toISOString()
+        };
+    } catch (error) {
+        console.error('Error anonymizing old data:', error);
+        throw error;
+    }
+};
+
+/**
+ * Clean up old data per retention policy
+ */
+const cleanupOldData = async () => {
+    try {
+        // Delete API usage records older than 90 days
+        const apiCutoff = new Date();
+        apiCutoff.setDate(apiCutoff.getDate() - 90);
+
+        const apiResult = await query(
+            'DELETE FROM api_usage WHERE created_at < $1',
+            [apiCutoff]
+        );
+
+        // Delete old processing logs (already anonymized)
+        const logCutoff = new Date();
+        logCutoff.setDate(logCutoff.getDate() - 365);
+
+        const logResult = await query(
+            'DELETE FROM processing_logs WHERE created_at < $1 AND user_id IS NULL',
+            [logCutoff]
+        );
+
+        console.log(`Cleaned up ${apiResult.rowCount} API usage records and ${logResult.rowCount} old logs`);
+
+        return {
+            deletedApiRecords: apiResult.rowCount,
+            deletedLogs: logResult.rowCount
+        };
+    } catch (error) {
+        console.error('Error cleaning up old data:', error);
+        throw error;
+    }
+};
+
 // Export all functions - ONE UNIFIED SERVICE
 module.exports = {
     // User services
     createOrUpdateUser,
     getUserById,
-    
+
     // API Usage Tracking (Free Tier Protection)
     trackApiUsage,
     checkDailyApiUsage,
     checkApiLimits,
-    
+
     // File upload services (replaces uploadedFiles Map)
     saveFileUpload,
     getFileUploadById,
     updateFileUpload,
-    
+
     // Site services (replaces generatedLandingPages Map - uses user_sites table ONLY)
     saveGeneratedSite,
     getGeneratedSiteById,
     updateSiteDeployment,
     getUserSites,
-    
+
     // User preferences (existing functionality)
     getUserPreferences,
     createDefaultPreferences,
-    
+
     // Logging
-    logProcessing
+    logProcessing,
+
+    // Data Privacy & Security (GDPR Compliance)
+    exportUserData,
+    deleteUserAccount,
+    anonymizeOldData,
+    cleanupOldData
 };

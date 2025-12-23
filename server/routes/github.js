@@ -9,6 +9,7 @@ const securePaths = require('../lib/utils/secure-paths');
 const { recordGitHubConnection, recordGitHubPublish } = require('../middleware/monitoring');
 const { authorizeResourceOwnership } = require('../middleware/authorization');
 const { verifyTokenEnhanced } = require('../middleware/enhanced-auth');
+const { githubRateLimitOnly } = require('../middleware/security');
 
 const router = express.Router();
 
@@ -296,7 +297,7 @@ router.get('/repositories', verifyTokenEnhanced, async (req, res) => {
 });
 
 // Create a new repository
-router.post('/create-repository', verifyTokenEnhanced, async (req, res) => {
+router.post('/create-repository', verifyTokenEnhanced, ...githubRateLimitOnly, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -338,7 +339,7 @@ router.post('/create-repository', verifyTokenEnhanced, async (req, res) => {
 });
 
 // Upload test files to repository
-router.post('/upload-test-files', verifyTokenEnhanced, async (req, res) => {
+router.post('/upload-test-files', verifyTokenEnhanced, ...githubRateLimitOnly, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -473,7 +474,7 @@ router.post('/upload-test-files', verifyTokenEnhanced, async (req, res) => {
 });
 
 // Enable GitHub Pages for repository
-router.post('/enable-pages', verifyTokenEnhanced, async (req, res) => {
+router.post('/enable-pages', verifyTokenEnhanced, ...githubRateLimitOnly, async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -531,7 +532,7 @@ router.post('/enable-pages', verifyTokenEnhanced, async (req, res) => {
 });
 
 // Test push CV site to GitHub repository (for debugging)
-router.post('/test-push-cv', verifyTokenEnhanced, authorizeResourceOwnership('generated_site'), async (req, res) => {
+router.post('/test-push-cv', verifyTokenEnhanced, ...githubRateLimitOnly, authorizeResourceOwnership('generated_site'), async (req, res) => {
     try {
         if (!req.user.github_token) {
             return res.status(401).json({ error: 'GitHub not connected' });
@@ -728,7 +729,7 @@ router.post('/test-push-cv', verifyTokenEnhanced, authorizeResourceOwnership('ge
 });
 
 // Check if GitHub Pages site is live
-router.post('/check-site-status', verifyTokenEnhanced, async (req, res) => {
+router.post('/check-site-status', verifyTokenEnhanced, ...githubRateLimitOnly, async (req, res) => {
     try {
         const { siteUrl } = req.body;
         

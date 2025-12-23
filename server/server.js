@@ -11,6 +11,10 @@ const { requestMonitoring, errorMonitoring } = require('./middleware/monitoring'
 const metricsCollector = require('./lib/metrics-collector');
 const fileCleanupManager = require('./lib/file-cleanup');
 
+// Import security middleware
+const csrfProtection = require('./middleware/csrf-protection');
+const perUserRateLimiter = require('./middleware/per-user-rate-limit');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -94,7 +98,7 @@ const githubLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// Apply rate limiting
+// Apply rate limiting (IP-based, applies to all requests including unauthenticated)
 app.use('/api/github/', githubLimiter);
 app.use('/api/', limiter);
 
@@ -135,6 +139,9 @@ app.use(requestMonitoring);
 const maxFileSize = process.env.MAX_FILE_SIZE || '50mb';
 app.use(express.json({ limit: maxFileSize }));
 app.use(express.urlencoded({ limit: maxFileSize, extended: true }));
+
+// SECURITY NOTE: CSRF and per-user rate limiting are applied within routes
+// after authentication middleware (verifyTokenEnhanced) to ensure user context
 
 // Create required directories
 const uploadsDir = path.join(__dirname, 'uploads');

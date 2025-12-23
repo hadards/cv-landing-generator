@@ -48,9 +48,21 @@ class MetricsCollector extends EventEmitter {
                 by_type: {},
                 by_endpoint: {},
                 recent: []
+            },
+
+            // Security metrics
+            security: {
+                csrf_violations: 0,
+                rate_limit_exceeded: 0,
+                malicious_file_uploads: 0,
+                failed_auth_attempts: 0,
+                token_revocations: 0,
+                data_exports: 0,
+                account_deletions: 0,
+                recent_security_events: []
             }
         };
-        
+
         this.startTime = Date.now();
         this.setupPeriodicCollection();
     }
@@ -247,6 +259,48 @@ class MetricsCollector extends EventEmitter {
         });
     }
     
+    // Security event recording
+    recordSecurityEvent(eventType, details = {}) {
+        const event = {
+            type: eventType,
+            details,
+            timestamp: Date.now()
+        };
+
+        // Increment specific security counters
+        switch (eventType) {
+            case 'csrf_violation':
+                this.metrics.security.csrf_violations++;
+                break;
+            case 'rate_limit_exceeded':
+                this.metrics.security.rate_limit_exceeded++;
+                break;
+            case 'malicious_file_upload':
+                this.metrics.security.malicious_file_uploads++;
+                break;
+            case 'failed_auth':
+                this.metrics.security.failed_auth_attempts++;
+                break;
+            case 'token_revoked':
+                this.metrics.security.token_revocations++;
+                break;
+            case 'data_export':
+                this.metrics.security.data_exports++;
+                break;
+            case 'account_deletion':
+                this.metrics.security.account_deletions++;
+                break;
+        }
+
+        // Store recent security events (keep last 100)
+        this.metrics.security.recent_security_events.push(event);
+        if (this.metrics.security.recent_security_events.length > 100) {
+            this.metrics.security.recent_security_events = this.metrics.security.recent_security_events.slice(-100);
+        }
+
+        this.emit('security_event', event);
+    }
+
     normalizeEndpoint(path) {
         // Normalize paths to group similar endpoints
         return path
@@ -254,7 +308,7 @@ class MetricsCollector extends EventEmitter {
             .replace(/\/\d+/g, '/:id')
             .replace(/\?.*$/, ''); // Remove query parameters
     }
-    
+
     getMetricsSummary() {
         const now = Date.now();
         const uptime = now - this.startTime;
