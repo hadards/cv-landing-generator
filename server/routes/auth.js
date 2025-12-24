@@ -15,6 +15,7 @@ const {
     logout
 } = require('../middleware/enhanced-auth');
 const metricsCollector = require('../lib/metrics-collector');
+const { sendServerError, sendBadRequest } = require('../lib/utils/response-helpers');
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -25,7 +26,7 @@ router.post('/login', async (req, res) => {
         const { credential } = req.body;
 
         if (!credential) {
-            return res.status(400).json({ error: 'Google credential is required' });
+            return sendBadRequest(res, 'Google credential is required');
         }
 
         // Development mode: allow mock credential for testing
@@ -71,7 +72,7 @@ router.post('/login', async (req, res) => {
             const payload = ticket.getPayload();
             
             if (!payload) {
-                return res.status(400).json({ error: 'Invalid Google token' });
+                return sendBadRequest(res, 'Invalid Google token');
             }
 
             // Create or update user in database
@@ -109,11 +110,7 @@ router.post('/login', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({
-            error: 'Authentication failed',
-            message: error.message
-        });
+        sendServerError(res, 'Login', error, 'Authentication failed');
     }
 });
 
@@ -132,11 +129,7 @@ router.post('/logout', verifyTokenEnhanced, async (req, res) => {
             message: 'Logout successful'
         });
     } catch (error) {
-        console.error('Logout error:', error);
-        res.status(500).json({
-            error: 'Logout failed',
-            message: error.message
-        });
+        sendServerError(res, 'Logout', error, 'Logout failed');
     }
 });
 
@@ -146,7 +139,7 @@ router.post('/refresh-token', async (req, res) => {
         const { refreshToken } = req.body;
 
         if (!refreshToken) {
-            return res.status(400).json({ error: 'Refresh token is required' });
+            return sendBadRequest(res, 'Refresh token is required');
         }
 
         const tokens = await refreshAccessToken(refreshToken);
@@ -203,11 +196,7 @@ router.get('/user', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('User info error:', error);
-        res.status(500).json({
-            error: 'Failed to get user info',
-            message: error.message
-        });
+        sendServerError(res, 'User info', error, 'Failed to get user info');
     }
 });
 
@@ -228,11 +217,7 @@ router.get('/export-data', verifyTokenEnhanced, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Data export error:', error);
-        res.status(500).json({
-            error: 'Failed to export user data',
-            message: error.message
-        });
+        sendServerError(res, 'Data export', error, 'Failed to export user data');
     }
 });
 
@@ -263,11 +248,7 @@ router.delete('/delete-account', verifyTokenEnhanced, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Account deletion error:', error);
-        res.status(500).json({
-            error: 'Failed to delete account',
-            message: error.message
-        });
+        sendServerError(res, 'Account deletion', error, 'Failed to delete account');
     }
 });
 

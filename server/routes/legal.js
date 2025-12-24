@@ -73,86 +73,53 @@ const getLegalDocument = async (filename) => {
 };
 
 /**
+ * Shared handler for legal document endpoints
+ * @param {string} documentName - The document filename (e.g., 'TERMS_OF_SERVICE')
+ * @param {string} displayName - Human-readable document name for error messages
+ */
+const serveLegalDocument = (documentName, displayName) => {
+    return async (req, res) => {
+        try {
+            const result = await getLegalDocument(documentName);
+
+            if (!result.success) {
+                return res.status(404).json(result);
+            }
+
+            // Set appropriate headers for legal content
+            res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+            res.json(result);
+
+        } catch (error) {
+            console.error(`Error serving ${displayName}:`, error);
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error',
+                message: `Failed to load ${displayName}`
+            });
+        }
+    };
+};
+
+/**
  * GET /api/legal/terms
  * Get Terms of Service
  */
-router.get('/terms', async (req, res) => {
-    try {
-        const result = await getLegalDocument('TERMS_OF_SERVICE');
-        
-        if (!result.success) {
-            return res.status(404).json(result);
-        }
-        
-        // Set appropriate headers for legal content
-        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        
-        res.json(result);
-        
-    } catch (error) {
-        console.error('Error serving Terms of Service:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-            message: 'Failed to load Terms of Service'
-        });
-    }
-});
+router.get('/terms', serveLegalDocument('TERMS_OF_SERVICE', 'Terms of Service'));
 
 /**
  * GET /api/legal/privacy
  * Get Privacy Policy
  */
-router.get('/privacy', async (req, res) => {
-    try {
-        const result = await getLegalDocument('PRIVACY_POLICY');
-        
-        if (!result.success) {
-            return res.status(404).json(result);
-        }
-        
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        
-        res.json(result);
-        
-    } catch (error) {
-        console.error('Error serving Privacy Policy:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-            message: 'Failed to load Privacy Policy'
-        });
-    }
-});
+router.get('/privacy', serveLegalDocument('PRIVACY_POLICY', 'Privacy Policy'));
 
 /**
  * GET /api/legal/disclaimer
  * Get Service Disclaimer
  */
-router.get('/disclaimer', async (req, res) => {
-    try {
-        const result = await getLegalDocument('DISCLAIMER');
-        
-        if (!result.success) {
-            return res.status(404).json(result);
-        }
-        
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        
-        res.json(result);
-        
-    } catch (error) {
-        console.error('Error serving Disclaimer:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Internal server error',
-            message: 'Failed to load Disclaimer'
-        });
-    }
-});
+router.get('/disclaimer', serveLegalDocument('DISCLAIMER', 'Disclaimer'));
 
 /**
  * GET /api/legal/summary

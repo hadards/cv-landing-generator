@@ -12,11 +12,11 @@ const IntelligentCVProcessor = require('../lib/intelligent-cv-processor');
 const TemplateProcessor = require('../lib/template-processor');
 const securePaths = require('../lib/utils/secure-paths');
 const InputSanitizer = require('../lib/utils/input-sanitizer');
-const { 
-    saveGeneratedSite, 
-    getGeneratedSiteById, 
+const {
+    saveGeneratedSite,
+    getGeneratedSiteById,
     updateSiteDeployment,
-    logProcessing, 
+    logProcessing,
     createOrUpdateUser,
     getUserById,
     saveFileUpload,    // Added for persistence
@@ -30,7 +30,9 @@ const {
 const { authorizeResourceOwnership, authorizeFileAccess } = require('../middleware/authorization');
 const { verifyTokenEnhanced } = require('../middleware/enhanced-auth');
 const { cvSecurity, rateLimitOnly } = require('../middleware/security');
+const { handleValidationErrors } = require('../middleware/validation');
 const metricsCollector = require('../lib/metrics-collector');
+const { sendServerError, sendBadRequest } = require('../lib/utils/response-helpers');
 
 const router = express.Router();
 
@@ -89,12 +91,53 @@ function calculateEntropy(buffer) {
     return entropy;
 }
 
+/**
+ * Set CORS headers and handle OPTIONS preflight requests
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @param {string} allowedMethods - Comma-separated list of allowed HTTP methods
+ * @param {string} allowedHeaders - Comma-separated list of allowed headers
+ * @returns {boolean} True if OPTIONS request was handled, false otherwise
+ */
+function handleCors(req, res, allowedMethods = 'GET, OPTIONS', allowedHeaders = 'Content-Type') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', allowedMethods);
+    res.setHeader('Access-Control-Allow-Headers', allowedHeaders);
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Get site record and output directory, or send 404 response
+ * @param {string} siteId - The site ID
+ * @param {object} res - Express response object
+ * @param {string} notFoundMessage - Error message for 404 response
+ * @returns {Promise<{siteRecord: object, outputDir: string}|null>} Site data or null if not found
+ */
+async function getSiteRecordAndPath(siteId, res, notFoundMessage = 'Site not found') {
+    const siteRecord = await getGeneratedSiteById(siteId);
+
+    if (!siteRecord) {
+        res.status(404).json({ error: notFoundMessage });
+        return null;
+    }
+
+    const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
+
+    return { siteRecord, outputDir };
+}
+
 // File content validation middleware
 const validateFileContent = async (req, res, next) => {
     console.log('File validation middleware hit, file:', req.file ? req.file.originalname : 'no file');
     if (!req.file) {
         console.log('Validation failed: No file in request');
-        return res.status(400).json({ error: 'No file uploaded' });
+        return sendBadRequest(res, 'No file uploaded');
     }
 
     try {
@@ -247,19 +290,6 @@ const validateFileContent = async (req, res, next) => {
     }
 };
 
-// Input validation middleware
-const handleValidationErrors = (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        console.error('Validation errors:', errors.array());
-        return res.status(400).json({
-            error: 'Validation failed',
-            details: errors.array()
-        });
-    }
-    next();
-};
-
 // Note: Using enhanced JWT verification from middleware/enhanced-auth.js
 
 // Enhanced authentication that accepts tokens from headers or query parameters
@@ -362,7 +392,7 @@ router.post('/upload', verifyTokenEnhanced, ...rateLimitOnly, upload.single('cvF
         
         if (!uploadedFile) {
             console.log('Upload failed: No file uploaded');
-            return res.status(400).json({ error: 'No file uploaded' });
+            return sendBadRequest(res, 'No file uploaded');
         }
 
         const fileInfo = {
@@ -656,13 +686,7 @@ router.get('/preview',
     authorizeResourceOwnership('generated_site'),
     async (req, res) => {
     // Set CORS headers for iframe embedding
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    if (handleCors(req, res, 'GET, POST, PUT, DELETE, OPTIONS', 'Content-Type, Authorization')) return;
 
     try {
         const { previewId } = req.query;
@@ -674,14 +698,11 @@ router.get('/preview',
         console.log('Loading preview for ID:', previewId);
 
         // Get site info from database
-        const siteRecord = await getGeneratedSiteById(previewId);
-        
-        if (!siteRecord) {
-            return res.status(404).json({ error: 'Preview not found' });
-        }
-        
-        // Build generation info for compatibility using secure paths
-        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
+        const result = await getSiteRecordAndPath(previewId, res, 'Preview not found');
+        if (!result) return;
+        const { siteRecord, outputDir } = result;
+
+        // Build generation info for compatibility
         const generationInfo = {
             id: siteRecord.id,
             userId: siteRecord.user_id,
@@ -752,13 +773,7 @@ router.get('/static',
     authorizeResourceOwnership('generated_site'),
     async (req, res) => {
     // Set CORS headers for static asset serving
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    if (handleCors(req, res)) return;
 
     try {
         const { previewId, file } = req.query;
@@ -770,19 +785,11 @@ router.get('/static',
         console.log('Serving static file:', file, 'for preview:', previewId);
 
         // Get site info from database
-        const siteRecord = await getGeneratedSiteById(previewId);
-        
-        if (!siteRecord) {
-            return res.status(404).json({ error: 'Preview not found' });
-        }
-        
-        // Build generation info for compatibility using secure paths
-        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
-        const generationInfo = {
-            outputDir: outputDir
-        };
+        const result = await getSiteRecordAndPath(previewId, res, 'Preview not found');
+        if (!result) return;
+        const { outputDir } = result;
 
-        const filePath = path.join(generationInfo.outputDir, file);
+        const filePath = path.join(outputDir, file);
         
         // Set content type based on file extension
         const ext = path.extname(file).toLowerCase();
@@ -846,13 +853,7 @@ router.get('/download',
     authorizeResourceOwnership('generated_site'),
     async (req, res) => {
     // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+    if (handleCors(req, res)) return;
 
     try {
         const { generationId } = req.query;
@@ -864,14 +865,11 @@ router.get('/download',
         console.log('Download requested for generation:', generationId);
 
         // Get site info from database
-        const siteRecord = await getGeneratedSiteById(generationId);
-        
-        if (!siteRecord) {
-            return res.status(404).json({ error: 'Generation not found' });
-        }
-        
-        // Build generation info for compatibility using secure paths
-        const { siteDir: outputDir } = securePaths.getSecureGeneratedPath(siteRecord.user_id, siteRecord.id);
+        const result = await getSiteRecordAndPath(generationId, res, 'Generation not found');
+        if (!result) return;
+        const { siteRecord, outputDir } = result;
+
+        // Build generation info for compatibility
         const generationInfo = {
             id: siteRecord.id,
             userId: siteRecord.user_id,

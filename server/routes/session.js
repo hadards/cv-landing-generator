@@ -2,28 +2,18 @@
 // Session management endpoints for logout, token refresh, and session control
 
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-const { 
-    verifyTokenEnhanced, 
-    refreshAccessToken, 
-    logout, 
+const { body } = require('express-validator');
+const {
+    verifyTokenEnhanced,
+    refreshAccessToken,
+    logout,
     logoutAllSessions,
-    getActiveSessions 
+    getActiveSessions
 } = require('../middleware/enhanced-auth');
+const { handleValidationErrors } = require('../middleware/validation');
+const { sendServerError } = require('../lib/utils/response-helpers');
 
 const router = express.Router();
-
-// Input validation middleware
-const handleValidationErrors = (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({
-            error: 'Validation failed',
-            details: errors.array()
-        });
-    }
-    next();
-};
 
 /**
  * POST /api/session/refresh
@@ -89,11 +79,7 @@ router.post('/logout', verifyTokenEnhanced, async (req, res) => {
         }
         
     } catch (error) {
-        console.error('Logout error:', error);
-        res.status(500).json({
-            error: 'Logout failed',
-            message: error.message
-        });
+        sendServerError(res, 'Logout', error, 'Logout failed');
     }
 });
 
@@ -120,11 +106,7 @@ router.post('/logout-all', verifyTokenEnhanced, async (req, res) => {
         }
         
     } catch (error) {
-        console.error('Logout all error:', error);
-        res.status(500).json({
-            error: 'Logout all failed',
-            message: error.message
-        });
+        sendServerError(res, 'Logout all', error, 'Logout all failed');
     }
 });
 
@@ -151,11 +133,7 @@ router.get('/active', verifyTokenEnhanced, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Get active sessions error:', error);
-        res.status(500).json({
-            error: 'Failed to get active sessions',
-            message: error.message
-        });
+        sendServerError(res, 'Get active sessions', error, 'Failed to get active sessions');
     }
 });
 
@@ -199,11 +177,7 @@ router.delete('/:sessionId',
         });
         
     } catch (error) {
-        console.error('Terminate session error:', error);
-        res.status(500).json({
-            error: 'Failed to terminate session',
-            message: error.message
-        });
+        sendServerError(res, 'Terminate session', error, 'Failed to terminate session');
     }
 });
 
@@ -230,11 +204,7 @@ router.get('/info', verifyTokenEnhanced, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Get session info error:', error);
-        res.status(500).json({
-            error: 'Failed to get session info',
-            message: error.message
-        });
+        sendServerError(res, 'Get session info', error, 'Failed to get session info');
     }
 });
 
