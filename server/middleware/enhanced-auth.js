@@ -334,8 +334,5 @@ module.exports = {
     refreshAccessToken,
     logout,
     logoutAllSessions,
-    getActiveSessions,
-    blacklistToken,
-    isTokenBlacklisted,
-    JWT_CONFIG
+    getActiveSessions
 };

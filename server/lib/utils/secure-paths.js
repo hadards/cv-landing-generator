@@ -56,31 +56,6 @@ class SecurePathService {
     }
 
     /**
-     * Create secure path for user uploads
-     * @param {string} userId - User ID (will be sanitized)
-     * @param {string} filename - Filename (will be sanitized)
-     * @returns {string} - Secure absolute path
-     */
-    getSecureUploadPath(userId, filename) {
-        const sanitizedUserId = this.sanitizePathComponent(userId);
-        const sanitizedFilename = this.sanitizePathComponent(filename);
-        
-        const userDir = path.join(this.uploadsDir, sanitizedUserId);
-        const filePath = path.join(userDir, sanitizedFilename);
-        
-        // Verify the path is within the uploads directory
-        if (!filePath.startsWith(this.uploadsDir)) {
-            throw new Error('Path traversal attempt detected');
-        }
-
-        return {
-            userDir,
-            filePath,
-            relativePath: path.relative(this.baseDir, filePath)
-        };
-    }
-
-    /**
      * Create secure path for generated sites
      * @param {string} userId - User ID (will be sanitized)
      * @param {string} siteId - Site ID (will be sanitized)
@@ -106,27 +81,6 @@ class SecurePathService {
     }
 
     /**
-     * Create secure path for template files
-     * @param {string} templateName - Template name (will be sanitized)
-     * @param {string} filename - File name (will be sanitized)  
-     * @returns {string} - Secure absolute path
-     */
-    getSecureTemplatePath(templateName, filename) {
-        const sanitizedTemplate = this.sanitizePathComponent(templateName);
-        const sanitizedFilename = this.sanitizePathComponent(filename);
-        
-        const templateDir = path.join(this.templatesDir, sanitizedTemplate);
-        const filePath = path.join(templateDir, sanitizedFilename);
-        
-        // Verify the path is within the templates directory
-        if (!filePath.startsWith(this.templatesDir)) {
-            throw new Error('Path traversal attempt detected');
-        }
-
-        return filePath;
-    }
-
-    /**
      * Ensure a directory exists securely
      * @param {string} dirPath - Directory path to create
      */
@@ -146,22 +100,6 @@ class SecurePathService {
         }
     }
 
-    /**
-     * Validate that a file path is secure and within allowed bounds
-     * @param {string} filePath - File path to validate
-     * @param {string} allowedBase - Base directory that must contain the path
-     * @returns {boolean} - True if path is secure
-     */
-    validateSecurePath(filePath, allowedBase) {
-        try {
-            const resolvedPath = path.resolve(filePath);
-            const resolvedBase = path.resolve(allowedBase);
-            
-            return resolvedPath.startsWith(resolvedBase);
-        } catch (error) {
-            return false;
-        }
-    }
 }
 
 module.exports = new SecurePathService();

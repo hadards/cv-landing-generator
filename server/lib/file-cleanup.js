@@ -654,8 +654,8 @@ class FileCleanupManager {
         try {
             const stats = await fs.stat(sitePath);
             if (stats.isDirectory()) {
-                await this.removeDirectory(sitePath);
-                console.log(`🗑️  Removed generated site: ${userId}/${siteId}`);
+                await this.deleteDirectory(sitePath);
+                console.log(`Removed generated site: ${userId}/${siteId}`);
                 
                 // Record metrics
                 metricsCollector.recordUserActivity('immediate_cleanup_success', {

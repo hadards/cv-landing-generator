@@ -39,25 +39,6 @@ const errorMonitoring = (err, req, res, next) => {
     next(err);
 };
 
-// Database operation monitoring wrapper
-const monitorDatabaseOperation = (operation) => {
-    return async (queryFunction) => {
-        const startTime = Date.now();
-        let success = true;
-        
-        try {
-            const result = await queryFunction();
-            return result;
-        } catch (error) {
-            success = false;
-            throw error;
-        } finally {
-            const duration = Date.now() - startTime;
-            metricsCollector.recordDatabaseOperation(operation, duration, success);
-        }
-    };
-};
-
 // File upload monitoring wrapper
 const monitorFileUpload = (req, res, next) => {
     if (!req.file) {
@@ -95,10 +76,6 @@ const recordUserLogin = (userId) => {
     metricsCollector.recordUserActivity('logins', { userId });
 };
 
-const recordUserRegistration = (userId) => {
-    metricsCollector.recordUserActivity('registrations', { userId });
-};
-
 const recordCVProcessing = (userId, processingTime) => {
     metricsCollector.recordUserActivity('cv_processed', { userId });
     metricsCollector.recordPerformance('cv_processing', processingTime, { userId });
@@ -119,24 +96,6 @@ const recordGitHubPublish = (userId, publishTime, success = true) => {
         metricsCollector.recordUserActivity('github_publishes', { userId });
     }
     metricsCollector.recordPerformance('github_publish', publishTime, { userId, success });
-};
-
-// Performance monitoring wrapper for async operations
-const monitorPerformance = (operation) => {
-    return async (asyncFunction, details = {}) => {
-        const startTime = Date.now();
-        
-        try {
-            const result = await asyncFunction();
-            const duration = Date.now() - startTime;
-            metricsCollector.recordPerformance(operation, duration, details);
-            return result;
-        } catch (error) {
-            const duration = Date.now() - startTime;
-            metricsCollector.recordPerformance(operation, duration, { ...details, error: error.message });
-            throw error;
-        }
-    };
 };
 
 // Health check alerting
@@ -194,14 +153,11 @@ const checkHealthThresholds = () => {
 module.exports = {
     requestMonitoring,
     errorMonitoring,
-    monitorDatabaseOperation,
     monitorFileUpload,
     recordUserLogin,
-    recordUserRegistration,
     recordCVProcessing,
     recordLandingPageGeneration,
     recordGitHubConnection,
     recordGitHubPublish,
-    monitorPerformance,
     checkHealthThresholds
 };

@@ -122,32 +122,6 @@ class EncryptionService {
         }
     }
 
-    /**
-     * Hash sensitive data (one-way, for comparison)
-     */
-    hash(text) {
-        if (!text) {
-            return null;
-        }
-
-        return crypto.createHash('sha256')
-            .update(text)
-            .digest('hex');
-    }
-
-    /**
-     * Generate a secure random token
-     */
-    generateToken(length = 32) {
-        return crypto.randomBytes(length).toString('hex');
-    }
-
-    /**
-     * Verify if encryption is available
-     */
-    isEncryptionAvailable() {
-        return !!this.encryptionKey;
-    }
 }
 
 // Singleton instance

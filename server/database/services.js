@@ -550,7 +550,6 @@ module.exports = {
 
     // API Usage Tracking (Free Tier Protection)
     trackApiUsage,
-    checkDailyApiUsage,
     checkApiLimits,
 
     // File upload services (replaces uploadedFiles Map)
