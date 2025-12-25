@@ -28,7 +28,25 @@ const perUserRateLimiter = require('./middleware/per-user-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Validate required environment variables based on LLM client type
+// Validate required environment variables
+const requiredEnvVars = [
+    'JWT_SECRET',
+    'DATABASE_URL',
+    'ENCRYPTION_KEY',
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GITHUB_CLIENT_ID',
+    'GITHUB_CLIENT_SECRET'
+];
+
+const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+if (missingVars.length > 0) {
+    console.error('ERROR: Missing required environment variables:');
+    missingVars.forEach(varName => console.error(`  - ${varName}`));
+    process.exit(1);
+}
+
+// Validate LLM client type specific variables
 const llmClientType = process.env.LLM_CLIENT_TYPE || 'gemini';
 if (llmClientType === 'gemini' && !process.env.GEMINI_API_KEY) {
     console.error('ERROR: GEMINI_API_KEY is required when LLM_CLIENT_TYPE=gemini');
@@ -37,11 +55,6 @@ if (llmClientType === 'gemini' && !process.env.GEMINI_API_KEY) {
 
 if (llmClientType === 'ollama' && !process.env.OLLAMA_BASE_URL) {
     console.error('ERROR: OLLAMA_BASE_URL is required when LLM_CLIENT_TYPE=ollama');
-    process.exit(1);
-}
-
-if (!process.env.JWT_SECRET) {
-    console.error('ERROR: JWT_SECRET is required for authentication');
     process.exit(1);
 }
 
