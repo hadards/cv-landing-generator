@@ -34,6 +34,22 @@ const { handleValidationErrors } = require('../middleware/validation');
 const metricsCollector = require('../lib/metrics-collector');
 const { sendServerError, sendBadRequest } = require('../lib/utils/response-helpers');
 
+// Import constants
+const {
+    MAX_FILE_UPLOAD_SIZE_BYTES,
+    MAX_ARCHIVE_SIZE_BYTES,
+    MAX_BASE64_IMAGE_SIZE_BYTES,
+    MAX_README_SIZE_BYTES,
+    ALLOWED_MIME_TYPES,
+    FILE_EXTENSIONS,
+    CONTENT_TYPES,
+    GENERATED_FILES,
+    FILE_ENTROPY_THRESHOLD,
+    FILE_CACHE_TTL_MS,
+    FILE_CACHE_MAX_SIZE,
+    JOB_STATUS
+} = require('../constants');
+
 const router = express.Router();
 
 // Initialize services
@@ -47,25 +63,25 @@ let queueManager;
 const upload = multer({
     dest: 'uploads/',
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
+        fileSize: MAX_FILE_UPLOAD_SIZE_BYTES,
     },
     fileFilter: (req, file, cb) => {
         // Basic MIME type validation
         const allowedTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ALLOWED_MIME_TYPES.PDF,
+            ALLOWED_MIME_TYPES.DOC,
+            ALLOWED_MIME_TYPES.DOCX,
             // Allow text files for testing
-            'text/plain'
+            ALLOWED_MIME_TYPES.TEXT
         ];
-        
+
         // Sanitize filename - remove dangerous characters
         const sanitizedFilename = file.originalname
             .replace(/[^a-zA-Z0-9.-]/g, '_')
             .substring(0, 100); // Limit filename length
-        
+
         file.originalname = sanitizedFilename;
-        
+
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
@@ -271,7 +287,7 @@ const validateFileContent = async (req, res, next) => {
 
         // ENHANCED: Check file entropy (high entropy may indicate encrypted/packed malware)
         const entropy = calculateEntropy(buffer.slice(0, Math.min(4096, buffer.length)));
-        if (entropy > 7.5) {
+        if (entropy > FILE_ENTROPY_THRESHOLD) {
             console.log('File has unusually high entropy:', entropy);
             // Don't reject automatically but log warning
             console.warn('Warning: High entropy file detected - possible encryption or compression');
@@ -331,7 +347,7 @@ const verifyTokenEnhancedWithQuery = async (req, res, next) => {
 // File processing storage - now using database instead of in-memory Maps
 // Keep temporary file cache for processing (files are cleaned up after processing)
 class SecureFileCache {
-    constructor(maxSize = 100, ttlMs = 2 * 60 * 60 * 1000) { // 2 hours TTL for queue processing
+    constructor(maxSize = FILE_CACHE_MAX_SIZE, ttlMs = FILE_CACHE_TTL_MS) {
         this.cache = new Map();
         this.maxSize = maxSize;
         this.ttlMs = ttlMs;
@@ -509,11 +525,11 @@ router.post('/process',
         const queueResult = await queueManager.addJob(req.user.userId, fileId);
         
         // Update file status to queued
-        fileInfo.status = 'queued';
+        fileInfo.status = JOB_STATUS.QUEUED;
         fileInfo.queuedAt = new Date().toISOString();
         fileInfo.jobId = queueResult.jobId;
         tempFileCache.set(fileId, fileInfo);
-        
+
         // Return queue information
         res.status(202).json({
             success: true,
@@ -522,7 +538,7 @@ router.post('/process',
             position: queueResult.position,
             estimatedWaitMinutes: queueResult.estimatedWaitMinutes,
             fileId: fileId,
-            status: 'queued',
+            status: JOB_STATUS.QUEUED,
             queuedAt: queueResult.queuedAt
         });
 

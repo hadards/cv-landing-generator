@@ -72,7 +72,7 @@ class IntelligentCVProcessorGemini extends IntelligentCVProcessorBase {
                                error.message.includes('not supported');
 
             if (isModelError) {
-                console.warn(`⚠️ Model ${this.currentModelName} failed: ${error.message}`);
+                console.warn(`Model ${this.currentModelName} failed: ${error.message}`);
                 
                 // Try to find next model in chain
                 const currentIndex = this.modelChain.indexOf(this.currentModelName);
@@ -853,11 +853,11 @@ REQUIRED JSON FORMAT:
             const response = result.response;
             const text = response.text();
             
-            console.log('✅ Gemini Connection Test:', text);
+            console.log('Gemini Connection Test:', text);
             return true;
             
         } catch (error) {
-            console.error('❌ Gemini Connection Test Failed:', error);
+            console.error('Gemini Connection Test Failed:', error);
             return false;
         }
     }

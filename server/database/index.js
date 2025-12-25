@@ -26,11 +26,11 @@ const initializeDatabase = () => {
             }
         });
 
-        console.log('✓ PostgreSQL connection pool initialized');
+        console.log('PostgreSQL connection pool initialized');
         return pool;
 
     } catch (error) {
-        console.error('❌ Failed to initialize database pool:', error.message);
+        console.error('Failed to initialize database pool:', error.message);
         throw error;
     }
 };
@@ -101,7 +101,7 @@ const closeDatabase = async () => {
     if (pool) {
         await pool.end();
         pool = null;
-        console.log('✓ Database connection closed');
+        console.log('Database connection closed');
     }
 };
 

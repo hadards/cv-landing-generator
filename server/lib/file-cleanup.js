@@ -634,7 +634,7 @@ class FileCleanupManager {
         const timeoutId = setTimeout(async () => {
             try {
                 await this.cleanupSpecificSite(userId, siteId);
-                console.log(`✅ Immediate cleanup completed for user ${userId}, site ${siteId}`);
+                console.log(`Immediate cleanup completed for user ${userId}, site ${siteId}`);
             } catch (error) {
                 console.warn(`Failed immediate cleanup for user ${userId}, site ${siteId}:`, error.message);
             } finally {

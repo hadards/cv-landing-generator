@@ -227,10 +227,10 @@ JSON Response:`;
         try {
             console.log('Testing Ollama connection...');
             const response = await this.ollamaClient._validateConnection();
-            console.log('✓ Ollama connection successful');
+            console.log('Ollama connection successful');
             return response;
         } catch (error) {
-            console.error('❌ Ollama connection failed:', error.message);
+            console.error('Ollama connection failed:', error.message);
             throw error;
         }
     }

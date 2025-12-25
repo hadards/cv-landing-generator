@@ -162,7 +162,7 @@ router.get('/callback', async (req, res) => {
                         // Close popup
                         window.close();
                         // Fallback if close doesn't work
-                        document.body.innerHTML = '<h2>✅ Authentication Successful!</h2><p>You can close this window.</p>';
+                        document.body.innerHTML = '<h2>Authentication Successful!</h2><p>You can close this window.</p>';
                     </script>
                 </body>
                 </html>
@@ -203,7 +203,7 @@ router.get('/callback', async (req, res) => {
                         // Close popup
                         window.close();
                         // Fallback if close doesn't work
-                        document.body.innerHTML = '<h2>❌ Authentication Failed</h2><p>Please close this window and try again.</p>';
+                        document.body.innerHTML = '<h2>Authentication Failed</h2><p>Please close this window and try again.</p>';
                     </script>
                 </body>
                 </html>
@@ -430,10 +430,10 @@ router.post('/upload-test-files', verifyTokenEnhanced, ...githubRateLimitOnly, a
         <div class="section">
             <h2>Features Tested</h2>
             <ul>
-                <li>✅ GitHub OAuth authentication</li>
-                <li>✅ Repository creation</li>
-                <li>✅ File upload to GitHub</li>
-                <li>✅ GitHub Pages deployment</li>
+                <li>GitHub OAuth authentication</li>
+                <li>Repository creation</li>
+                <li>File upload to GitHub</li>
+                <li>GitHub Pages deployment</li>
             </ul>
         </div>
 

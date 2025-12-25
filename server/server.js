@@ -6,6 +6,16 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
+// Import constants
+const {
+    RATE_LIMIT_WINDOW_MS,
+    FREE_TIER_RATE_LIMIT,
+    DEFAULT_RATE_LIMIT_MAX_REQUESTS,
+    MAX_ARCHIVE_SIZE_BYTES,
+    MEMORY_PRESSURE_THRESHOLD_MB,
+    THIRTY_SECONDS_MS
+} = require('./constants');
+
 // Import monitoring systems
 const { requestMonitoring, errorMonitoring } = require('./middleware/monitoring');
 const metricsCollector = require('./lib/metrics-collector');
@@ -69,8 +79,8 @@ app.use((req, res, next) => {
 
 // Rate limiting - Free tier optimized
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 20, // Reduced for free tier (was 100)
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || RATE_LIMIT_WINDOW_MS,
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || FREE_TIER_RATE_LIMIT,
     message: {
         error: 'Rate limit exceeded',
         message: 'Free tier allows 20 requests per 15 minutes. Please try again later.',
@@ -80,7 +90,7 @@ const limiter = rateLimit({
     legacyHeaders: false,
     // Skip rate limiting for static assets and health checks
     skip: (req) => {
-        return req.path.includes('/health') || 
+        return req.path.includes('/health') ||
                req.path.includes('/static') ||
                req.path.includes('/favicon');
     }
@@ -88,8 +98,8 @@ const limiter = rateLimit({
 
 // GitHub OAuth rate limiting - More restrictive for free tier
 const githubLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.GITHUB_RATE_LIMIT) || 20, // Reduced for free tier (was 50)
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    max: parseInt(process.env.GITHUB_RATE_LIMIT) || FREE_TIER_RATE_LIMIT,
     message: {
         error: 'GitHub rate limit exceeded',
         message: 'Too many GitHub requests. Please try again in 15 minutes.'
@@ -136,7 +146,7 @@ app.use(cors({
 app.use(requestMonitoring);
 
 // Body parsing middleware
-const maxFileSize = process.env.MAX_FILE_SIZE || '50mb';
+const maxFileSize = process.env.MAX_FILE_SIZE || `${MAX_ARCHIVE_SIZE_BYTES}`;
 app.use(express.json({ limit: maxFileSize }));
 app.use(express.urlencoded({ limit: maxFileSize, extended: true }));
 
@@ -221,24 +231,24 @@ async function testDatabaseConnection() {
 
 // Memory pressure handling for free tier
 let memoryPressureActive = false;
-const MEMORY_PRESSURE_THRESHOLD = parseInt(process.env.MEMORY_PRESSURE_THRESHOLD) || 400; // MB
+const memoryPressureThreshold = parseInt(process.env.MEMORY_PRESSURE_THRESHOLD) || MEMORY_PRESSURE_THRESHOLD_MB;
 
 const checkMemoryPressure = () => {
     const usage = process.memoryUsage();
     const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
-    
-    if (heapUsedMB > MEMORY_PRESSURE_THRESHOLD && !memoryPressureActive) {
+
+    if (heapUsedMB > memoryPressureThreshold && !memoryPressureActive) {
         memoryPressureActive = true;
-        console.warn(`⚠️  MEMORY PRESSURE DETECTED: ${heapUsedMB}MB used (threshold: ${MEMORY_PRESSURE_THRESHOLD}MB)`);
-        console.warn('📉 Activating memory pressure protection - throttling new requests');
-        
+        console.warn(`MEMORY PRESSURE DETECTED: ${heapUsedMB}MB used (threshold: ${memoryPressureThreshold}MB)`);
+        console.warn('Activating memory pressure protection - throttling new requests');
+
         // Force garbage collection if available
         if (global.gc) {
             global.gc();
             const newUsage = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-            console.log(`🗑️  Garbage collection completed: ${newUsage}MB (freed: ${heapUsedMB - newUsage}MB)`);
+            console.log(`Garbage collection completed: ${newUsage}MB (freed: ${heapUsedMB - newUsage}MB)`);
         }
-        
+
         // Trigger emergency file cleanup
         setTimeout(async () => {
             try {
@@ -247,11 +257,11 @@ const checkMemoryPressure = () => {
                 console.warn('Emergency cleanup failed:', error.message);
             }
         }, 1000); // Delay to avoid blocking current request
-    } else if (heapUsedMB < MEMORY_PRESSURE_THRESHOLD * 0.8 && memoryPressureActive) {
+    } else if (heapUsedMB < memoryPressureThreshold * 0.8 && memoryPressureActive) {
         memoryPressureActive = false;
-        console.log(`✅ Memory pressure relieved: ${heapUsedMB}MB`);
+        console.log(`Memory pressure relieved: ${heapUsedMB}MB`);
     }
-    
+
     return memoryPressureActive;
 };
 
@@ -268,7 +278,7 @@ app.use('/api/cv/process', (req, res, next) => {
 });
 
 // Monitor memory every 30 seconds
-setInterval(checkMemoryPressure, 30000);
+setInterval(checkMemoryPressure, THIRTY_SECONDS_MS);
 
 // Start server
 const server = app.listen(PORT, async () => {
@@ -280,13 +290,13 @@ const server = app.listen(PORT, async () => {
     console.log(`Health: http://localhost:${PORT}/api/health`);
     console.log(`=================================`);
     console.log(`Configuration Status:`);
-    console.log(`Gemini API: ${process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
-    console.log(`JWT Secret: ${process.env.JWT_SECRET ? '✓ Configured' : '✗ Missing'}`);
-    console.log(`Database: ${process.env.DATABASE_URL ? '✓ Configured' : '✗ Missing'}`);
-    console.log(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`Gemini API: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Missing'}`);
+    console.log(`JWT Secret: ${process.env.JWT_SECRET ? 'Configured' : 'Missing'}`);
+    console.log(`Database: ${process.env.DATABASE_URL ? 'Configured' : 'Missing'}`);
+    console.log(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? 'Configured' : 'Missing'}`);
     console.log(`CORS Origins: ${allowedOrigins.join(', ')}`);
-    const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100;
-    const rateLimitWindow = (parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000) / 1000 / 60;
+    const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || DEFAULT_RATE_LIMIT_MAX_REQUESTS;
+    const rateLimitWindow = (parseInt(process.env.RATE_LIMIT_WINDOW_MS) || RATE_LIMIT_WINDOW_MS) / 1000 / 60;
     console.log(`Rate Limiting: ${rateLimitMax} requests per ${rateLimitWindow} minutes`);
     console.log(`=================================`);
     
@@ -295,7 +305,7 @@ const server = app.listen(PORT, async () => {
     if (!dbConnected) {
         console.warn('Database not available - run schema.sql in Supabase to set up tables');
     } else {
-        console.log('✓ Database connection verified');
+        console.log('Database connection verified');
     }
     
     // Start file cleanup manager

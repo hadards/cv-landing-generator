@@ -1,12 +1,17 @@
 // Per-user rate limiting middleware (database-backed for multi-instance support)
 const { query } = require('../database/index');
 const metricsCollector = require('../lib/metrics-collector');
+const {
+    RATE_LIMIT_WINDOW_MS,
+    DEFAULT_RATE_LIMIT_MAX_REQUESTS,
+    ONE_HOUR_MS
+} = require('../constants');
 
 class PerUserRateLimiter {
     constructor() {
-        this.windowMs = 15 * 60 * 1000; // 15 minutes
-        this.maxRequestsPerWindow = 100; // requests per window
-        this.cleanupInterval = 60 * 60 * 1000; // Clean up every hour
+        this.windowMs = RATE_LIMIT_WINDOW_MS;
+        this.maxRequestsPerWindow = DEFAULT_RATE_LIMIT_MAX_REQUESTS;
+        this.cleanupInterval = ONE_HOUR_MS;
 
         // Start cleanup
         this.startCleanup();
