@@ -70,7 +70,12 @@ export class AuthService {
 
   logout(): Observable<any> {
     return new Observable(observer => {
-      this.http.post(`${this.apiUrl}/auth/logout`, {}).subscribe({
+      const token = localStorage.getItem(this.tokenKey);
+      const headers = token ? new HttpHeaders({
+        'Authorization': `Bearer ${token}`
+      }) : undefined;
+
+      this.http.post(`${this.apiUrl}/auth/logout`, {}, { headers }).subscribe({
         next: (response) => {
           localStorage.removeItem(this.tokenKey);
           this.userSubject.next(null);
@@ -133,5 +138,9 @@ export class AuthService {
         }
       });
     });
+  }
+
+  getGoogleClientId(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/auth/config`);
   }
 }

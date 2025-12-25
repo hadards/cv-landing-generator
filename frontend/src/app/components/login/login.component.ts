@@ -132,39 +132,54 @@ export class LoginComponent implements OnInit {
   }
 
   private loadGoogleSignIn() {
-    this.createMockGoogleButton();
-  }
-
-  private createMockGoogleButton() {
-    const button = document.getElementById('google-signin-button');
-    if (button) {
-      button.innerHTML = `
-        <button class="w-full flex justify-center items-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 hover:shadow-md">
-          <div class="w-5 h-5 bg-blue-500 rounded mr-3 flex items-center justify-center">
-            <span class="text-white text-xs font-bold">G</span>
-          </div>
-          Continue with Google
-        </button>
-      `;
-      
-      const btn = button.querySelector('button');
-      if (btn) {
-        btn.addEventListener('click', () => this.mockGoogleLogin());
+    this.authService.getGoogleClientId().subscribe({
+      next: (config: any) => {
+        if (config.googleClientId) {
+          this.initializeGoogleSignIn(config.googleClientId);
+        } else {
+          this.error = 'Google authentication is not configured.';
+        }
+      },
+      error: (error) => {
+        console.error('Failed to load Google config:', error);
+        this.error = 'Failed to load authentication configuration.';
       }
-    }
+    });
   }
 
-  private mockGoogleLogin() {
-    this.loading = true;
-    this.error = null;
+  private initializeGoogleSignIn(clientId: string) {
+    const checkGoogle = () => {
+      if (typeof window.google !== 'undefined') {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: this.handleGoogleCallback.bind(this)
+        });
 
-    const mockCredential = 'mock_google_jwt_token_for_testing';
-    
-    setTimeout(() => {
-      this.authService.login(mockCredential).subscribe({
-        next: (response) => {
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-signin-button'),
+          {
+            theme: 'outline',
+            size: 'large',
+            width: 400,
+            text: 'continue_with'
+          }
+        );
+      } else {
+        setTimeout(checkGoogle, 100);
+      }
+    };
+    checkGoogle();
+  }
+
+  private handleGoogleCallback(response: any) {
+    if (response.credential) {
+      this.loading = true;
+      this.error = null;
+
+      this.authService.login(response.credential).subscribe({
+        next: (loginResponse) => {
           this.loading = false;
-          if (response.success) {
+          if (loginResponse.success) {
             this.router.navigate(['/dashboard']);
           } else {
             this.error = 'Login failed. Please try again.';
@@ -172,9 +187,9 @@ export class LoginComponent implements OnInit {
         },
         error: (error) => {
           this.loading = false;
-          this.error = error.error?.message || 'An error occurred during login.';
+          this.error = error.error?.error || error.error?.message || 'An error occurred during login.';
         }
       });
-    }, 1500);
+    }
   }
 }

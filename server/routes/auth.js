@@ -20,6 +20,13 @@ const { sendServerError, sendBadRequest } = require('../lib/utils/response-helpe
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Get Google Client ID for frontend
+router.get('/config', (req, res) => {
+    res.json({
+        googleClientId: process.env.GOOGLE_CLIENT_ID
+    });
+});
+
 // Login endpoint
 router.post('/login', async (req, res) => {
     try {
@@ -27,39 +34,6 @@ router.post('/login', async (req, res) => {
 
         if (!credential) {
             return sendBadRequest(res, 'Google credential is required');
-        }
-
-        // Development mode: allow mock credential for testing
-        if (process.env.NODE_ENV === 'development' && credential === 'mock_google_jwt_token_for_testing') {
-            // Create or get real database user for testing
-            const dbUser = await createOrUpdateUser({
-                email: 'test@example.com',
-                name: 'Test User',
-                google_id: 'test_google_123'
-            });
-
-            const user = {
-                id: dbUser.id,
-                email: dbUser.email,
-                name: dbUser.name,
-                picture: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI4MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VGVzdCBVc2VyPC90ZXh0Pgo8L3N2Zz4K',
-                verified: true
-            };
-
-            // Generate JWT token using enhanced auth
-            const { generateTokens } = require('../middleware/enhanced-auth');
-            const tokens = generateTokens(user.id, user.email);
-            const token = tokens.accessToken;
-
-            // Record user login
-            recordUserLogin(user.id);
-            
-            return res.status(200).json({
-                success: true,
-                user: user,
-                token: token,
-                message: 'Development login successful'
-            });
         }
 
         // Verify Google JWT token
