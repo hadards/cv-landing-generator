@@ -22,7 +22,9 @@ const initializeDatabase = () => {
             connectionTimeoutMillis: parseInt(process.env.DATABASE_CONNECTION_TIMEOUT) || 3000, // 3 seconds
             acquireTimeoutMillis: parseInt(process.env.DATABASE_ACQUIRE_TIMEOUT) || 5000, // 5 seconds
             ssl: {
-                rejectUnauthorized: false // Required for Supabase connections
+                // Supabase uses self-signed certificates in their chain
+                // We still want SSL encryption, but can't validate against public CAs
+                rejectUnauthorized: false
             }
         });
 

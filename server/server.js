@@ -6,6 +6,17 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
+// Production-safe console logging
+const isDevelopment = process.env.NODE_ENV !== 'production';
+global.console = {
+    ...console,
+    log: isDevelopment ? console.log : () => {},
+    debug: isDevelopment ? console.log : () => {},
+    info: console.info,
+    warn: console.warn,
+    error: console.error
+};
+
 // Import constants
 const {
     RATE_LIMIT_WINDOW_MS,

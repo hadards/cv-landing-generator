@@ -33,7 +33,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm audit:*)",
       "Bash(cat:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(NODE_ENV=production node:*)",
+      "Bash(NODE_ENV=development node:*)"
     ],
     "deny": []
   }
