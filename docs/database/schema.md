@@ -529,8 +529,8 @@ CREATE TABLE rate_limits (
 
 **Rate Limits**:
 - **General API**: 100 requests per 15 minutes per user
-- **CV Operations**: 50 requests per 15 minutes per user
-- **GitHub Operations**: 20 requests per 15 minutes per user
+- **CV Operations**: 10 requests per 15 minutes per user
+- **GitHub Operations**: 5 requests per 15 minutes per user
 
 **Retention**: Rolling 15-minute windows (old windows automatically deleted)
 

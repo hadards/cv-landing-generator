@@ -105,3 +105,6 @@ generated/
 *.pem
 *.key
 *.crt
+
+# Claude Code settings
+.claude/settings.local.json

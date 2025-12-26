@@ -15,22 +15,27 @@ declare global {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+    <div class="relative min-h-screen flex items-center justify-center overflow-hidden py-12 px-4" style="background: #0a0e27;">
+      <!-- 3D Floating Orbs -->
+      <div class="floating-orb orb-purple" style="width: 400px; height: 400px; top: -10%; left: -5%; animation-delay: 0s;"></div>
+      <div class="floating-orb orb-cyan" style="width: 350px; height: 350px; bottom: -10%; right: -5%; animation-delay: 3s;"></div>
+      <div class="floating-orb orb-pink" style="width: 300px; height: 300px; top: 50%; left: 50%; animation-delay: 6s;"></div>
 
-      <div class="max-w-md w-full">
+      <div class="max-w-md w-full relative z-10">
         <!-- Header -->
-        <div class="text-center mb-8 fade-in">
-          <div class="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <span class="text-white font-bold text-lg">CV</span>
+        <div class="text-center mb-8 animate-fade-in">
+          <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center"
+               style="box-shadow: 0 0 40px rgba(167, 139, 250, 0.5);">
+            <span class="text-white font-bold text-2xl">CV</span>
           </div>
-          <h1 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-          <p class="text-gray-600">
+          <h1 class="text-4xl font-bold text-gradient mb-3">Welcome Back</h1>
+          <p class="text-white/70 text-lg">
             Sign in to create and manage your professional landing pages
           </p>
         </div>
 
         <!-- Login Card -->
-        <div class="card scale-in">
+        <div class="glass rounded-2xl p-8 shadow-2xl animate-slide-up" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
           <div class="space-y-6">
             <!-- Google Sign In Button -->
             <div>
@@ -40,30 +45,30 @@ declare global {
             <!-- Divider -->
             <div class="relative">
               <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-gray-300"></div>
+                <div class="w-full border-t" style="border-color: rgba(167, 139, 250, 0.2);"></div>
               </div>
               <div class="relative flex justify-center text-sm">
-                <span class="px-2 bg-white text-gray-500">Fast & Secure</span>
+                <span class="px-3 text-white/80 font-medium" style="background: rgba(26, 31, 58, 0.9);">Fast & Secure</span>
               </div>
             </div>
 
             <!-- Features -->
             <div class="space-y-3">
-              <div class="flex items-center text-sm text-gray-600">
-                <div class="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                  <span class="text-xs text-green-600 font-bold">✓</span>
+              <div class="flex items-center text-sm text-white/80">
+                <div class="w-5 h-5 bg-green-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0" style="border: 1px solid rgba(34, 197, 94, 0.3);">
+                  <span class="text-xs text-green-400 font-bold">✓</span>
                 </div>
                 Create unlimited landing pages
               </div>
-              <div class="flex items-center text-sm text-gray-600">
-                <div class="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                  <span class="text-xs text-green-600 font-bold">✓</span>
+              <div class="flex items-center text-sm text-white/80">
+                <div class="w-5 h-5 bg-green-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0" style="border: 1px solid rgba(34, 197, 94, 0.3);">
+                  <span class="text-xs text-green-400 font-bold">✓</span>
                 </div>
                 AI-powered content generation
               </div>
-              <div class="flex items-center text-sm text-gray-600">
-                <div class="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                  <span class="text-xs text-green-600 font-bold">✓</span>
+              <div class="flex items-center text-sm text-white/80">
+                <div class="w-5 h-5 bg-green-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0" style="border: 1px solid rgba(34, 197, 94, 0.3);">
+                  <span class="text-xs text-green-400 font-bold">✓</span>
                 </div>
                 Mobile-responsive designs
               </div>
@@ -72,34 +77,34 @@ declare global {
             <!-- Loading State -->
             <div *ngIf="loading" class="text-center py-4">
               <div class="flex items-center justify-center space-x-3">
-                <div class="loading-spinner"></div>
-                <span class="text-gray-600">Signing you in...</span>
+                <div class="wizard-spinner"></div>
+                <span class="text-white/80">Signing you in...</span>
               </div>
             </div>
 
             <!-- Error Message -->
-            <div *ngIf="error" class="status-error">
-              <div class="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center mr-2 flex-shrink-0">
-                <span class="text-xs text-red-600 font-bold">!</span>
+            <div *ngIf="error" class="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start">
+              <div class="w-5 h-5 bg-red-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                <span class="text-xs text-red-400 font-bold">!</span>
               </div>
               <div>
-                <h3 class="font-medium">Authentication Error</h3>
-                <p class="text-sm mt-1">{{ error }}</p>
+                <h3 class="font-medium text-red-400">Authentication Error</h3>
+                <p class="text-sm mt-1 text-red-400/80">{{ error }}</p>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Footer -->
-        <div class="text-center mt-8 space-y-4 fade-in">
-          <p class="text-sm text-gray-500">
-            By signing in, you agree to our 
-            <a href="#" class="text-blue-600 hover:text-blue-700 font-medium">Terms of Service</a>
-            and 
-            <a href="#" class="text-blue-600 hover:text-blue-700 font-medium">Privacy Policy</a>
+        <div class="text-center mt-8 space-y-4 animate-fade-in">
+          <p class="text-sm text-white/60">
+            By signing in, you agree to our
+            <a href="#" class="text-purple-400 hover:text-purple-300 font-medium underline">Terms of Service</a>
+            and
+            <a href="#" class="text-purple-400 hover:text-purple-300 font-medium underline">Privacy Policy</a>
           </p>
-          
-          <div class="flex items-center justify-center space-x-6 text-xs text-gray-400">
+
+          <div class="flex items-center justify-center space-x-6 text-xs text-white/50">
             <div class="flex items-center">
               <div class="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
               256-bit SSL

@@ -1,21 +1,21 @@
 <!-- File: frontend/src/app/components/cv-wizard/cv-wizard.component.html -->
 <div class="container max-w-5xl mx-auto py-4 md:py-8 px-4 md:px-6 cv-wizard">
   <!-- Wizard Header -->
-  <div class="text-center mb-8 md:mb-12 fade-in">
-    <div class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-white rounded-full shadow-sm border border-warm-coral mb-4 md:mb-6">
-      <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-      <span class="text-xs md:text-sm font-medium warm-text-primary">AI-Powered • Fast • Professional</span>
+  <div class="text-center mb-8 md:mb-12 animate-fade-in">
+    <div class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 rounded-full mb-4 md:mb-6 glass" style="background: rgba(26, 31, 58, 0.6); border: 1px solid rgba(167, 139, 250, 0.3);">
+      <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+      <span class="text-xs md:text-sm font-medium text-white">AI-Powered • Fast • Professional</span>
     </div>
-    
+
     <h1 class="text-2xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 leading-tight">
-      <span class="warm-text-primary">Transform Your</span>
+      <span class="text-white">Transform Your</span>
       <br>
       <span class="text-gradient">CV into a Stunning</span>
       <br>
-      <span class="warm-text-primary">Landing Page</span>
+      <span class="text-white">Landing Page</span>
     </h1>
-    
-    <p class="text-lg md:text-xl warm-text-secondary max-w-2xl mx-auto leading-relaxed px-4">
+
+    <p class="text-lg md:text-xl text-white/70 max-w-2xl mx-auto leading-relaxed px-4">
       Upload your CV and let our AI create a beautiful, responsive landing page that showcases your professional story in minutes.
     </p>
   </div>
@@ -82,14 +82,14 @@
     
     <!-- Step 1: Upload CV -->
     <div *ngIf="currentStep === 1" class="text-center">
-      <div class="w-12 h-12 md:w-16 md:h-16 bg-gradient rounded-xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg">
-        <div class="w-6 h-6 md:w-8 md:h-8 bg-white rounded-lg flex items-center justify-center">
-          <span class="text-warm-orange font-bold text-xs">CV</span>
+      <div class="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 bg-gradient-to-br from-purple-500 to-purple-700" style="box-shadow: 0 0 40px rgba(167, 139, 250, 0.5);">
+        <div class="w-6 h-6 md:w-8 md:h-8 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm" style="border: 1px solid rgba(255, 255, 255, 0.3);">
+          <span class="text-white font-bold text-xs md:text-sm">CV</span>
         </div>
       </div>
-      
-      <h2 class="text-xl md:text-2xl font-bold warm-text-primary mb-3 md:mb-4">Upload Your CV</h2>
-      <p class="warm-text-secondary mb-6 md:mb-8 max-w-md mx-auto text-sm md:text-base px-4">
+
+      <h2 class="text-xl md:text-2xl font-bold text-white mb-3 md:mb-4">Upload Your CV</h2>
+      <p class="text-white/70 mb-6 md:mb-8 max-w-md mx-auto text-sm md:text-base px-4">
         Upload your CV in PDF, DOC, or DOCX format and we'll extract your information automatically
       </p>
       
@@ -101,20 +101,20 @@
            [class.dragover]="isDragOver">
         
         <div class="space-y-6 relative z-10">
-          <div class="w-20 h-20 bg-warm-cream rounded-xl flex items-center justify-center mx-auto">
-            <div class="w-10 h-10 bg-warm-orange rounded-lg flex items-center justify-center">
+          <div class="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto bg-purple-500/20" style="border: 2px solid rgba(167, 139, 250, 0.3);">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-purple-700" style="box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);">
               <span class="text-white font-bold">CV</span>
             </div>
           </div>
-          
+
           <div>
-            <p class="text-lg font-medium warm-text-primary mb-2">
+            <p class="text-lg font-medium text-white mb-2">
               Drag and drop your CV here
             </p>
-            <p class="warm-text-secondary mb-4">
+            <p class="text-white/70 mb-4">
               or click to browse your files
             </p>
-            <p class="text-sm warm-text-light">
+            <p class="text-sm text-white/60">
               Supports PDF, DOC, DOCX • Max size 10MB
             </p>
           </div>
@@ -221,14 +221,14 @@
       </p>
       
       <div *ngIf="!isProcessing && !cvData" class="space-y-6">
-        <div class="card max-w-md mx-auto p-8 bg-gradient-to-br from-warm-cream to-warm-yellow">
+        <div class="glass rounded-2xl p-8 max-w-md mx-auto" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
           <div class="space-y-6">
-            <div class="w-16 h-16 bg-gradient rounded-xl flex items-center justify-center mx-auto shadow-lg">
+            <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto bg-gradient-to-br from-cyan-500 to-cyan-700" style="box-shadow: 0 0 40px rgba(34, 211, 238, 0.5);">
               <span class="text-white font-bold text-sm">PROC</span>
             </div>
             <div>
-              <h3 class="text-lg font-semibold warm-text-primary mb-2">Ready to Process</h3>
-              <p class="warm-text-secondary text-sm">
+              <h3 class="text-lg font-semibold text-white mb-2">Ready to Process</h3>
+              <p class="text-white/70 text-sm">
                 We'll extract your information and generate compelling content
               </p>
             </div>
@@ -240,73 +240,73 @@
       </div>
 
       <div *ngIf="isProcessing" class="space-y-6">
-        <div class="card max-w-lg mx-auto p-4 md:p-8 bg-gradient-to-br from-warm-cream to-warm-beige">
+        <div class="glass rounded-2xl p-4 md:p-8 max-w-lg mx-auto" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
           <div class="text-center space-y-4 md:space-y-6">
-            <div class="loading-spinner w-6 h-6 md:w-8 md:h-8 mx-auto"></div>
+            <div class="wizard-spinner w-6 h-6 md:w-8 md:h-8 mx-auto"></div>
             <div>
-              <h3 class="text-base md:text-lg font-semibold warm-text-primary mb-2">Processing Your CV</h3>
-              <p class="warm-text-secondary text-xs md:text-sm px-2">
+              <h3 class="text-base md:text-lg font-semibold text-white mb-2">Processing Your CV</h3>
+              <p class="text-white/70 text-xs md:text-sm px-2">
                 {{ getQueueStatusMessage() }}
               </p>
-              <div *ngIf="processingStartTime" class="text-xs warm-text-light mt-2">
+              <div *ngIf="processingStartTime" class="text-xs text-white/60 mt-2">
                 Elapsed time: {{ formatElapsedTime(processingElapsedTime) }}
               </div>
             </div>
           </div>
-          
+
           <!-- Queue Status Banner -->
-          <div *ngIf="currentJobStatus && currentJobStatus.status === 'queued'" 
-               class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
+          <div *ngIf="currentJobStatus && currentJobStatus.status === 'queued'"
+               class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center">
                 <div class="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
-                <span class="text-sm font-medium text-yellow-800">In Queue</span>
+                <span class="text-sm font-medium text-yellow-400">In Queue</span>
               </div>
-              <span class="text-xs text-yellow-600">
+              <span class="text-xs text-yellow-400/80">
                 Position #{{ queuePosition }} • ~{{ estimatedWaitTime }}min wait
               </span>
             </div>
           </div>
-          
+
           <!-- Processing Status Banner -->
-          <div *ngIf="currentJobStatus && currentJobStatus.status === 'processing'" 
-               class="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+          <div *ngIf="currentJobStatus && currentJobStatus.status === 'processing'"
+               class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mt-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center">
-                <div class="loading-spinner w-3 h-3 mr-2"></div>
-                <span class="text-sm font-medium text-blue-800">Processing Now</span>
+                <div class="wizard-spinner w-3 h-3 mr-2"></div>
+                <span class="text-sm font-medium text-blue-400">Processing Now</span>
               </div>
-              <span class="text-xs text-blue-600">
+              <span class="text-xs text-blue-400/80">
                 AI is analyzing your CV...
               </span>
             </div>
           </div>
-          
+
           <div class="mt-6 md:mt-8 space-y-2 md:space-y-3">
-            <div *ngFor="let phase of processingPhases; let i = index" 
-                 class="flex items-center gap-3 text-xs md:text-sm bg-white bg-opacity-50 rounded-lg p-2 md:p-3">
-              <span class="warm-text-secondary flex-1 text-left">{{ phase.name }}</span>
+            <div *ngFor="let phase of processingPhases; let i = index"
+                 class="flex items-center gap-3 text-xs md:text-sm bg-black/20 border border-purple-500/20 rounded-lg p-2 md:p-3">
+              <span class="text-white/80 flex-1 text-left">{{ phase.name }}</span>
               <div class="flex items-center flex-shrink-0">
-                <div *ngIf="phase.status === 'completed'" class="text-green-600 font-bold text-xs">
+                <div *ngIf="phase.status === 'completed'" class="text-green-400 font-bold text-xs">
                   ✓
                 </div>
-                <div *ngIf="phase.status === 'processing'" class="loading-spinner w-3 h-3 md:w-4 md:h-4"></div>
-                <div *ngIf="phase.status === 'error'" class="text-red-600 font-bold text-xs">
+                <div *ngIf="phase.status === 'processing'" class="wizard-spinner w-3 h-3 md:w-4 md:h-4"></div>
+                <div *ngIf="phase.status === 'error'" class="text-red-400 font-bold text-xs">
                   ✗
                 </div>
-                <div *ngIf="phase.status === 'pending'" class="w-3 h-3 md:w-4 md:h-4 bg-warm-taupe rounded-full opacity-50"></div>
+                <div *ngIf="phase.status === 'pending'" class="w-3 h-3 md:w-4 md:h-4 bg-white/20 rounded-full opacity-50"></div>
               </div>
             </div>
           </div>
-          
+
           <!-- Progress Bar -->
           <div class="mt-4">
-            <div class="bg-gray-200 rounded-full h-2">
-              <div class="bg-gradient h-2 rounded-full transition-all duration-500"
+            <div class="progress-bar">
+              <div class="progress-bar-fill transition-all duration-500"
                    [style.width]="getProgressPercentage() + '%'"></div>
             </div>
             <div class="text-center mt-2">
-              <span class="text-xs warm-text-light">{{ getProgressPercentage() }}% Complete</span>
+              <span class="text-xs text-white/60">{{ getProgressPercentage() }}% Complete</span>
             </div>
           </div>
         </div>
@@ -331,31 +331,32 @@
             <span class="text-white font-bold text-xs">GEN</span>
           </div>
         </div>
-        <h2 class="text-2xl font-bold warm-text-primary mb-4">Review & Edit</h2>
-        <p class="warm-text-secondary max-w-md mx-auto">
+        <h2 class="text-2xl font-bold text-white mb-4">Review & Edit</h2>
+        <p class="text-white/70 max-w-md mx-auto">
           Review the generated content and make any adjustments before creating your landing page
         </p>
       </div>
-      
+
       <div class="space-y-6">
-        <div *ngFor="let section of cvSections" class="card p-6">
+        <div *ngFor="let section of cvSections" class="glass rounded-2xl p-6" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
           <div class="flex items-center mb-4">
-            <div class="w-8 h-8 bg-warm-orange rounded-lg flex items-center justify-center mr-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3 bg-gradient-to-br from-purple-500 to-purple-700" style="box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);">
               <span class="text-white font-bold text-xs">{{ section.id.substring(0, 2).toUpperCase() }}</span>
             </div>
-            <h3 class="text-lg font-semibold warm-text-primary">{{ section.title }}</h3>
+            <h3 class="text-lg font-semibold text-white">{{ section.title }}</h3>
           </div>
-          
-          <textarea 
+
+          <textarea
             [(ngModel)]="section.content"
             [placeholder]="section.placeholder"
             [rows]="section.rows"
-            class="textarea-field">
+            class="input-field"
+            style="background: rgba(26, 31, 58, 0.6); border: 2px solid rgba(167, 139, 250, 0.2); color: white; resize: vertical;">
           </textarea>
-          
+
           <div class="flex items-center justify-between mt-2">
-            <span class="text-xs warm-text-light">{{ section.content.length || 0 }} characters</span>
-            <button class="btn-ghost text-xs" (click)="resetSection(section)">
+            <span class="text-xs text-white/60">{{ section.content.length || 0 }} characters</span>
+            <button class="text-xs text-purple-400 hover:text-purple-300 font-medium" (click)="resetSection(section)">
               Reset to Original
             </button>
           </div>
@@ -460,9 +461,9 @@
             </div>
             
             <!-- Success Info -->
-            <div class="bg-white border border-green-200 rounded-lg p-4 mt-6">
-              <h4 class="font-semibold text-green-800 mb-2">What's Next?</h4>
-              <div class="text-sm text-green-700 space-y-1">
+            <div class="glass rounded-lg p-4 mt-6" style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3);">
+              <h4 class="font-semibold text-green-400 mb-2">What's Next?</h4>
+              <div class="text-sm text-green-400/80 space-y-1">
                 <p>• Preview your website to see how it looks</p>
                 <p>• Download the complete website files</p>
                 <p>• Upload to your hosting provider</p>

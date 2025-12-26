@@ -243,7 +243,7 @@ export class GitHubPublishButtonComponent implements OnInit {
 
   async handlePublish() {
     console.log('handlePublish called with jobId:', this.jobId);
-    
+
     if (!this.jobId) {
       console.log('No job ID provided');
       this.state = 'error';
@@ -252,12 +252,16 @@ export class GitHubPublishButtonComponent implements OnInit {
       return;
     }
 
+    // Set state to publishing IMMEDIATELY when button is clicked
+    console.log('Setting state to publishing immediately');
+    this.state = 'publishing';
+
     console.log('Checking GitHub connection before publishing...');
     // Check GitHub connection status from backend first
     try {
       const status = await this.githubService.checkGitHubConnection();
       console.log('GitHub connection check result:', status);
-      
+
       if (!status.connected) {
         console.log('GitHub not connected - switching to auth-needed state');
         this.state = 'auth-needed';
@@ -273,8 +277,7 @@ export class GitHubPublishButtonComponent implements OnInit {
       }
     }
 
-    console.log('GitHub connected - starting publishing process');
-    this.state = 'publishing';
+    console.log('GitHub connected - continuing publishing process');
 
     try {
       // This single call does EVERYTHING automatically:

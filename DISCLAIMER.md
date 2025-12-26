@@ -107,8 +107,8 @@ This service runs **100% on FREE TIER** services with significant limitations:
 - **Daily Limit**: 50 CV generations per user per day
 - **API Rate Limits**:
   - General API: 100 requests per 15 minutes per user
-  - CV Operations: 50 requests per 15 minutes per user
-  - GitHub Operations: 20 requests per 15 minutes per user
+  - CV Operations: 10 requests per 15 minutes per user
+  - GitHub Operations: 5 requests per 15 minutes per user
   - IP-based: 20 requests per 15 minutes per IP address
 - **File Size Limits**:
   - CV Upload: 10MB maximum

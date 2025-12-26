@@ -1,5 +1,4 @@
-// File: frontend/src/app/components/header/header.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
@@ -9,31 +8,30 @@ import { AuthService, User } from '../../services/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-50 h-20">
+    <header class="glass sticky top-0 z-50 backdrop-blur-md" style="background: rgba(10, 14, 39, 0.8); border-bottom: 1px solid rgba(167, 139, 250, 0.2);">
       <nav class="container h-full">
-        <div class="flex justify-between items-center h-full px-2 md:px-4">
+        <div class="flex justify-between items-center h-full px-4 py-4">
           <!-- Logo -->
-          <div class="flex items-center space-x-2 md:space-x-3 flex-1 min-w-0">
-            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-24 md:h-64 flex-shrink-0" style="width: auto; min-width: 96px;" 
-                 [style.min-width]="'min(96px, 20vw)'"
-                 [style.min-width.md]="'256px'">
+          <div class="flex items-center space-x-3 flex-1 min-w-0">
+            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-12 md:h-16 flex-shrink-0"
+                 style="width: auto;">
             <div class="min-w-0 flex-1">
-              <h1 class="text-lg md:text-xl font-bold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">CV to Landing</h1>
-              <p class="text-xs md:text-sm text-gray-600 -mt-1 whitespace-nowrap overflow-hidden text-ellipsis">Create • Share • Shine</p>
+              <h1 class="text-xl md:text-2xl font-black text-gradient">CV Landing Generator</h1>
+              <p class="text-xs md:text-sm text-white/60">Create • Share • Shine</p>
             </div>
           </div>
 
           <!-- Navigation -->
-          <div class="hidden md:flex items-center space-x-4">
-            <a routerLink="/home" 
-               routerLinkActive="active" 
+          <div class="hidden md:flex items-center space-x-6">
+            <a routerLink="/home"
+               routerLinkActive="active"
                [routerLinkActiveOptions]="{exact: true}"
                class="nav-link">
               Home
             </a>
-            
-            <a *ngIf="user" 
-               routerLink="/upload" 
+
+            <a *ngIf="user"
+               routerLink="/upload"
                routerLinkActive="active"
                class="nav-link">
               Create
@@ -41,59 +39,62 @@ import { AuthService, User } from '../../services/auth.service';
           </div>
 
           <!-- User Actions -->
-          <div class="flex items-center space-x-1 md:space-x-3 flex-shrink-0">
+          <div class="flex items-center space-x-3 flex-shrink-0">
             <!-- Mobile Menu Button -->
-            <button *ngIf="!user" 
-                    (click)="toggleMobileMenu()" 
-                    class="md:hidden btn-ghost p-2">
+            <button *ngIf="!user"
+                    (click)="toggleMobileMenu()"
+                    class="md:hidden p-2 rounded-lg glass hover:bg-purple-500/10">
               Menu
             </button>
 
             <!-- Auth Buttons -->
             <div *ngIf="!user" class="hidden md:flex items-center space-x-3">
-              <a routerLink="/login" class="btn-secondary">
+              <a routerLink="/login" class="btn-secondary text-sm px-6 py-2.5">
                 Sign In
               </a>
-              <a routerLink="/login" class="btn-primary">
+              <a routerLink="/login" class="btn-primary text-sm px-6 py-2.5">
                 Get Started
               </a>
             </div>
 
             <!-- User Menu -->
-            <div *ngIf="user" class="relative flex items-center space-x-2 md:space-x-3">
+            <div *ngIf="user" class="relative flex items-center space-x-3 user-menu-container">
               <!-- User Profile Button -->
-              <button (click)="toggleUserMenu()" 
-                      class="hidden md:flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                <div class="w-8 h-8 rounded-full overflow-hidden ring-2 ring-blue-500 shadow-md">
+              <button (click)="toggleUserMenu($event)"
+                      class="hidden md:flex items-center space-x-3 p-2 rounded-lg hover:bg-purple-500/10 transition-colors"
+                      style="background: transparent;">
+                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-purple-400" style="box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);">
                   <img [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover">
                 </div>
                 <div class="hidden lg:block text-left">
-                  <p class="text-sm font-semibold text-gray-900">{{ getFirstName(user.name) }}</p>
-                  <p class="text-xs text-gray-600">{{ user.email }}</p>
+                  <p class="text-sm font-semibold text-white">{{ getFirstName(user.name) }}</p>
+                  <p class="text-xs text-white/60">{{ user.email }}</p>
                 </div>
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </button>
-              
+
               <!-- User Dropdown Menu -->
-              <div *ngIf="showUserMenu" 
-                   class="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+              <div *ngIf="showUserMenu"
+                   class="absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden backdrop-blur-md"
+                   style="background: rgba(26, 31, 58, 0.95); border: 1px solid rgba(167, 139, 250, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);">
                 <div class="py-2">
-                  <button (click)="logout(); closeUserMenu()" 
-                          class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button (click)="logout(); closeUserMenu()"
+                          class="w-full text-left px-4 py-3 text-sm text-red-400
+                                 hover:bg-red-500/10 transition-colors flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                     </svg>
-                    Sign Out
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>
-              
+
               <!-- Mobile Menu Button for authenticated users -->
-              <button (click)="toggleMobileMenu()" 
-                      class="md:hidden btn-ghost p-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button (click)="toggleMobileMenu()"
+                      class="md:hidden p-2 rounded-lg glass hover:bg-purple-500/10">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                 </svg>
               </button>
@@ -102,12 +103,13 @@ import { AuthService, User } from '../../services/auth.service';
         </div>
 
         <!-- Mobile Menu -->
-        <div *ngIf="showMobileMenu" 
-             class="md:hidden absolute left-0 right-0 top-full bg-white border-t border-gray-200 shadow-lg z-40">
+        <div *ngIf="showMobileMenu"
+             class="md:hidden glass border-t"
+             style="border-color: rgba(167, 139, 250, 0.2);">
           <div class="px-4 py-6">
             <!-- Navigation Links -->
-            <div class="space-y-1 mb-6">
-              <a routerLink="/home" 
+            <div class="space-y-2 mb-6">
+              <a routerLink="/home"
                  (click)="closeMobileMenu()"
                  routerLinkActive="mobile-nav-active"
                  [routerLinkActiveOptions]="{exact: true}"
@@ -117,9 +119,9 @@ import { AuthService, User } from '../../services/auth.service';
                 </svg>
                 Home
               </a>
-              
+
               <a *ngIf="user"
-                 routerLink="/upload" 
+                 routerLink="/upload"
                  (click)="closeMobileMenu()"
                  routerLinkActive="mobile-nav-active"
                  class="mobile-nav-link">
@@ -129,44 +131,48 @@ import { AuthService, User } from '../../services/auth.service';
                 Create
               </a>
             </div>
-            
+
             <!-- User Section -->
-            <div *ngIf="user" class="border-t border-gray-100 pt-6">
+            <div *ngIf="user" class="border-t pt-6" style="border-color: rgba(167, 139, 250, 0.2);">
               <!-- User Info -->
-              <div class="flex items-center space-x-3 mb-4 p-3 bg-gray-50 rounded-lg">
-                <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-blue-500">
+              <div class="flex items-center space-x-3 mb-4 p-3 glass rounded-xl">
+                <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-purple-400">
                   <img [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover">
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-semibold text-gray-900 truncate">{{ user.name }}</p>
-                  <p class="text-xs text-gray-600 truncate">{{ user.email }}</p>
+                  <p class="text-sm font-semibold text-white truncate">{{ user.name }}</p>
+                  <p class="text-xs text-white/60 truncate">{{ user.email }}</p>
                 </div>
               </div>
-              
+
               <!-- Sign Out Button -->
               <button (click)="logout(); closeMobileMenu()"
-                      class="w-full flex items-center justify-center space-x-2 px-4 py-3 text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                      class="w-full flex items-center justify-center space-x-2 px-4 py-3
+                             text-red-400
+                             bg-red-500/10
+                             border border-red-500/30
+                             rounded-xl hover:bg-red-500/20 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                 </svg>
                 <span class="font-medium">Sign Out</span>
               </button>
             </div>
-            
+
             <!-- Non-authenticated user options -->
-            <div *ngIf="!user" class="border-t border-gray-100 pt-6 space-y-3">
-              <a routerLink="/login" 
+            <div *ngIf="!user" class="border-t pt-6 space-y-3" style="border-color: rgba(167, 139, 250, 0.2);">
+              <a routerLink="/login"
                  (click)="closeMobileMenu()"
-                 class="w-full flex items-center justify-center space-x-2 px-4 py-3 text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                 class="w-full flex items-center justify-center space-x-2 px-4 py-3 btn-secondary rounded-xl">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
                 </svg>
                 <span class="font-medium">Sign In</span>
               </a>
-              
-              <a routerLink="/login" 
+
+              <a routerLink="/login"
                  (click)="closeMobileMenu()"
-                 class="w-full flex items-center justify-center space-x-2 px-4 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                 class="w-full flex items-center justify-center space-x-2 px-4 py-3 btn-primary rounded-xl">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
@@ -180,139 +186,74 @@ import { AuthService, User } from '../../services/auth.service';
   `,
   styles: [`
     .nav-link {
-      color: #6b7280;
+      color: rgba(255, 255, 255, 0.7);
       font-weight: 500;
       padding: 0.5rem 1rem;
-      border-radius: 6px;
-      transition: all 0.2s ease;
+      border-radius: 10px;
+      transition: all 0.3s ease;
       text-decoration: none;
-      font-size: 0.875rem;
+      font-size: 0.95rem;
     }
 
     .nav-link:hover {
-      color: #1f2937;
-      background: #f3f4f6;
+      color: #a78bfa;
+      background: rgba(167, 139, 250, 0.1);
+      transform: translateY(-1px);
     }
 
     .nav-link.active {
-      color: #2563eb;
-      background: #eff6ff;
-    }
-
-    .btn-primary {
-      background: #2563eb;
-      color: white;
-      font-weight: 500;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      border: none;
-      text-decoration: none;
-      font-size: 0.875rem;
-      transition: all 0.2s ease;
-      display: inline-block;
-      text-align: center;
-    }
-
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-secondary {
-      background: white;
-      color: #2563eb;
-      font-weight: 500;
-      padding: 0.5rem 1rem;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      text-decoration: none;
-      font-size: 0.875rem;
-      transition: all 0.2s ease;
-      display: inline-block;
-      text-align: center;
-    }
-
-    .btn-secondary:hover {
-      background: #f9fafb;
-      border-color: #9ca3af;
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: #6b7280;
-      font-weight: 500;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .btn-ghost:hover {
-      background: #f3f4f6;
-      color: #1f2937;
-    }
-
-    .btn-active {
-      background: #f3f4f6;
-      color: #1f2937;
-    }
-
-    .dropdown {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    }
-
-    .dropdown-item {
-      display: block;
-      padding: 0.5rem 1rem;
-      color: #6b7280;
-      text-decoration: none;
-      transition: all 0.2s ease;
-      font-size: 0.875rem;
-    }
-
-    .dropdown-item:hover {
-      background: #f3f4f6;
-      color: #1f2937;
+      color: #a78bfa;
+      background: rgba(167, 139, 250, 0.15);
     }
 
     .mobile-nav-link {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      color: #6b7280;
+      padding: 0.875rem 1rem;
+      color: rgba(255, 255, 255, 0.7);
       text-decoration: none;
       font-weight: 500;
-      border-radius: 0.5rem;
-      transition: all 0.2s ease;
+      border-radius: 10px;
+      transition: all 0.3s ease;
     }
 
     .mobile-nav-link:hover {
-      background: #f3f4f6;
-      color: #1f2937;
+      background: rgba(167, 139, 250, 0.1);
+      color: #a78bfa;
     }
 
     .mobile-nav-active {
-      background: #eff6ff;
-      color: #2563eb;
+      background: rgba(167, 139, 250, 0.15);
+      color: #a78bfa;
     }
-  `]
+  `],
+  animations: []
 })
 export class HeaderComponent implements OnInit {
   user: User | null = null;
   showMobileMenu = false;
   showUserMenu = false;
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService
+  ) {}
 
   ngOnInit() {
     this.authService.user$.subscribe(user => {
       this.user = user;
-      // Close mobile menu when user state changes
       this.showMobileMenu = false;
     });
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    const clickedInside = target.closest('.user-menu-container');
+
+    if (!clickedInside && this.showUserMenu) {
+      this.showUserMenu = false;
+    }
   }
 
   getFirstName(fullName: string): string {
@@ -321,16 +262,19 @@ export class HeaderComponent implements OnInit {
 
   toggleMobileMenu() {
     this.showMobileMenu = !this.showMobileMenu;
-    this.showUserMenu = false; // Close user menu when opening mobile menu
+    this.showUserMenu = false;
   }
 
   closeMobileMenu() {
     this.showMobileMenu = false;
   }
 
-  toggleUserMenu() {
+  toggleUserMenu(event?: MouseEvent) {
+    if (event) {
+      event.stopPropagation();
+    }
     this.showUserMenu = !this.showUserMenu;
-    this.showMobileMenu = false; // Close mobile menu when opening user menu
+    this.showMobileMenu = false;
   }
 
   closeUserMenu() {

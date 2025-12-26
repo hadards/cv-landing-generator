@@ -25,8 +25,8 @@ This Service operates entirely on **FREE TIER** infrastructure with the followin
 - **Daily Limits**: Up to 50 CV generations per user per day
 - **API Rate Limits**:
   - General API: 100 requests per 15 minutes per user
-  - CV Operations: 50 requests per 15 minutes per user
-  - GitHub Operations: 20 requests per 15 minutes per user
+  - CV Operations: 10 requests per 15 minutes per user
+  - GitHub Operations: 5 requests per 15 minutes per user
   - IP-based: 20 requests per 15 minutes per IP address
 - **Gemini AI**: Subject to Gemini free tier monthly token limits (100,000 tokens)
 
