@@ -7,6 +7,8 @@
 -- ============================================================================
 
 -- Clean start - drop all existing tables and functions
+DROP TABLE IF EXISTS token_blacklist CASCADE;
+DROP TABLE IF EXISTS user_sessions CASCADE;
 DROP TABLE IF EXISTS rate_limits CASCADE;
 DROP TABLE IF EXISTS api_usage CASCADE;
 DROP TABLE IF EXISTS processing_jobs CASCADE;
@@ -18,6 +20,7 @@ DROP TABLE IF EXISTS generated_sites CASCADE;
 DROP TABLE IF EXISTS user_preferences CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at_column CASCADE;
+DROP FUNCTION IF EXISTS cleanup_expired_auth_sessions CASCADE;
 
 -- Enable required PostgreSQL extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -148,6 +151,23 @@ CREATE TABLE processing_jobs (
 -- SECURITY TABLES
 -- ============================================================================
 
+-- User sessions table - for JWT authentication session tracking
+CREATE TABLE user_sessions (
+    session_id VARCHAR(255) PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+-- Token blacklist table - for JWT token revocation
+CREATE TABLE token_blacklist (
+    token_id VARCHAR(255) PRIMARY KEY,
+    blacklisted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
 -- API usage tracking table - for free tier protection and monitoring
 CREATE TABLE api_usage (
     id SERIAL PRIMARY KEY,
@@ -225,6 +245,13 @@ CREATE INDEX idx_rate_limits_user_id ON rate_limits(user_id);
 CREATE INDEX idx_rate_limits_user_endpoint ON rate_limits(user_id, endpoint, window_start);
 CREATE INDEX idx_rate_limits_cleanup ON rate_limits(created_at);
 
+-- User sessions indexes
+CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX idx_user_sessions_expires ON user_sessions(expires_at);
+
+-- Token blacklist indexes
+CREATE INDEX idx_token_blacklist_expires ON token_blacklist(expires_at);
+
 -- ============================================================================
 -- TRIGGERS AND FUNCTIONS
 -- ============================================================================
@@ -275,18 +302,37 @@ CREATE TRIGGER update_rate_limits_updated_at
 -- CLEANUP AND MAINTENANCE FUNCTIONS
 -- ============================================================================
 
--- Session cleanup function
+-- CV processing session cleanup function
 CREATE OR REPLACE FUNCTION cleanup_expired_sessions()
 RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM cv_processing_sessions 
+    DELETE FROM cv_processing_sessions
     WHERE expires_at < CURRENT_TIMESTAMP;
-    
+
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    
+
     RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Authentication session cleanup function
+CREATE OR REPLACE FUNCTION cleanup_expired_auth_sessions()
+RETURNS TABLE(deleted_sessions INTEGER, deleted_tokens INTEGER) AS $$
+DECLARE
+    sessions_count INTEGER;
+    tokens_count INTEGER;
+BEGIN
+    -- Delete expired sessions
+    DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP;
+    GET DIAGNOSTICS sessions_count = ROW_COUNT;
+
+    -- Delete expired blacklisted tokens
+    DELETE FROM token_blacklist WHERE expires_at < CURRENT_TIMESTAMP;
+    GET DIAGNOSTICS tokens_count = ROW_COUNT;
+
+    RETURN QUERY SELECT sessions_count, tokens_count;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -308,6 +354,8 @@ DECLARE
         'processing_logs',
         'user_preferences',
         'processing_jobs',
+        'user_sessions',
+        'token_blacklist',
         'api_usage',
         'rate_limits'
     ];
@@ -339,6 +387,8 @@ BEGIN
         RAISE NOTICE '';
         RAISE NOTICE 'Features enabled:';
         RAISE NOTICE '  • User authentication (Google OAuth)';
+        RAISE NOTICE '  • JWT session management with persistence';
+        RAISE NOTICE '  • Token blacklisting and revocation';
         RAISE NOTICE '  • GitHub integration and publishing';
         RAISE NOTICE '  • CV file upload and processing';
         RAISE NOTICE '  • Landing page generation and hosting';
@@ -390,10 +440,10 @@ ORDER BY tablename;
 -- ✅ Performance optimization via indexes
 -- ✅ Automatic maintenance and cleanup
 --
--- Total Tables: 9 (7 core + 2 security)
--- Total Indexes: 30
+-- Total Tables: 11 (7 core + 4 security)
+-- Total Indexes: 33
 -- Total Triggers: 8
--- Total Functions: 2
+-- Total Functions: 3
 -- 
 -- Ready for production use!
 -- ============================================================================
@@ -407,6 +457,8 @@ ALTER TABLE cv_processing_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processing_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processing_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE token_blacklist ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 

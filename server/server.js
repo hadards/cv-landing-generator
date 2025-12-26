@@ -304,6 +304,30 @@ app.use('/api/cv/process', (req, res, next) => {
 // Monitor memory every 30 seconds
 setInterval(checkMemoryPressure, THIRTY_SECONDS_MS);
 
+// Initialize authentication session storage tables
+const sessionStore = require('./database/session-store');
+sessionStore.initializeSessionTables().then(() => {
+    console.log('Authentication session storage initialized');
+    // Schedule daily cleanup of expired authentication sessions
+    setInterval(() => {
+        sessionStore.cleanupExpiredData().catch(err => {
+            console.error('Auth session cleanup error:', err);
+        });
+    }, 24 * 60 * 60 * 1000); // Run daily
+}).catch(error => {
+    console.error('Failed to initialize session storage:', error);
+    process.exit(1);
+});
+
+// Schedule CV processing session cleanup (every 6 hours)
+const CVSessionService = require('./lib/services/cv-session-service');
+const cvSessionService = new CVSessionService();
+setInterval(() => {
+    cvSessionService.cleanupExpiredSessions().catch(err => {
+        console.error('CV session cleanup error:', err);
+    });
+}, 6 * 60 * 60 * 1000); // Every 6 hours
+
 // Start server
 const server = app.listen(PORT, async () => {
     console.log(`=================================`);

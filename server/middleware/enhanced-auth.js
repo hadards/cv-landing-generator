@@ -3,12 +3,7 @@
 
 const jwt = require('jsonwebtoken');
 const { getUserById } = require('../database/services');
-
-// In-memory token blacklist - in production, use Redis
-const tokenBlacklist = new Set();
-
-// Session tracking - in production, use Redis with expiration
-const activeSessions = new Map();
+const sessionStore = require('../database/session-store');
 
 // Configuration
 const JWT_CONFIG = {
@@ -65,74 +60,56 @@ function generateTokens(userId, userEmail) {
 /**
  * Track active user sessions
  */
-function trackActiveSession(userId, sessionId, tokenId) {
-    if (!activeSessions.has(userId)) {
-        activeSessions.set(userId, new Map());
+async function trackActiveSession(userId, sessionId, tokenId) {
+    const expiresInMs = parseExpiration(JWT_CONFIG.expiresIn);
+    await sessionStore.trackSession(userId, sessionId, tokenId, expiresInMs);
+}
+
+/**
+ * Parse JWT expiration string to milliseconds
+ */
+function parseExpiration(expiresIn) {
+    const match = expiresIn.match(/^(\d+)([hdm])$/);
+    if (!match) return 24 * 60 * 60 * 1000; // Default 24 hours
+
+    const value = parseInt(match[1]);
+    const unit = match[2];
+
+    switch (unit) {
+        case 'h': return value * 60 * 60 * 1000;
+        case 'd': return value * 24 * 60 * 60 * 1000;
+        case 'm': return value * 60 * 1000;
+        default: return 24 * 60 * 60 * 1000;
     }
-    
-    const userSessions = activeSessions.get(userId);
-    
-    // Enforce session limit
-    if (userSessions.size >= JWT_CONFIG.maxSessionsPerUser) {
-        // Remove oldest session
-        const oldestSession = userSessions.keys().next().value;
-        const oldSessionData = userSessions.get(oldestSession);
-        if (oldSessionData) {
-            blacklistToken(oldSessionData.tokenId);
-        }
-        userSessions.delete(oldestSession);
-    }
-    
-    userSessions.set(sessionId, {
-        tokenId: tokenId,
-        createdAt: Date.now(),
-        lastActivity: Date.now()
-    });
 }
 
 /**
  * Update session activity
  */
-function updateSessionActivity(userId, sessionId) {
-    const userSessions = activeSessions.get(userId);
-    if (userSessions && userSessions.has(sessionId)) {
-        const session = userSessions.get(sessionId);
-        session.lastActivity = Date.now();
-    }
+async function updateSessionActivity(userId, sessionId) {
+    await sessionStore.updateSessionActivity(userId, sessionId);
 }
 
 /**
- * Check if session is expired
+ * Check if session is valid (not expired)
  */
-function isSessionExpired(userId, sessionId) {
-    const userSessions = activeSessions.get(userId);
-    if (!userSessions || !userSessions.has(sessionId)) {
-        return true;
-    }
-    
-    const session = userSessions.get(sessionId);
-    return (Date.now() - session.lastActivity) > JWT_CONFIG.sessionTimeoutMs;
+async function isSessionValid(userId, sessionId) {
+    return await sessionStore.isSessionValid(userId, sessionId);
 }
 
 /**
  * Blacklist a token
  */
-function blacklistToken(tokenId) {
-    tokenBlacklist.add(tokenId);
-    
-    // Clean up old blacklisted tokens periodically
-    if (tokenBlacklist.size > 10000) {
-        const tokensToKeep = Array.from(tokenBlacklist).slice(-5000);
-        tokenBlacklist.clear();
-        tokensToKeep.forEach(token => tokenBlacklist.add(token));
-    }
+async function blacklistToken(tokenId) {
+    const expiresInMs = parseExpiration(JWT_CONFIG.refreshExpiresIn);
+    await sessionStore.blacklistToken(tokenId, expiresInMs);
 }
 
 /**
  * Check if token is blacklisted
  */
-function isTokenBlacklisted(tokenId) {
-    return tokenBlacklist.has(tokenId);
+async function isTokenBlacklisted(tokenId) {
+    return await sessionStore.isTokenBlacklisted(tokenId);
 }
 
 /**
@@ -180,41 +157,35 @@ const verifyTokenEnhanced = async (req, res, next) => {
         }
         
         // Check if token is blacklisted (skip for legacy tokens without tokenId)
-        if (decoded.tokenId && isTokenBlacklisted(decoded.tokenId)) {
-            return res.status(401).json({ 
+        if (decoded.tokenId && await isTokenBlacklisted(decoded.tokenId)) {
+            return res.status(401).json({
                 error: 'Token has been revoked',
                 code: 'TOKEN_REVOKED'
             });
         }
-        
+
         // Check session validity (skip for legacy tokens without sessionId)
-        // Note: If session doesn't exist in memory (server restart), recreate it from token
         if (decoded.sessionId) {
-            const userSessions = activeSessions.get(decoded.userId);
-            if (!userSessions || !userSessions.has(decoded.sessionId)) {
-                // Session not in memory - recreate from valid token (server restart scenario)
+            const sessionValid = await isSessionValid(decoded.userId, decoded.sessionId);
+            if (!sessionValid) {
+                // Session not in database - recreate from valid token (server restart scenario)
                 console.log(`Recreating session ${decoded.sessionId.substring(0, 8)}... for user ${decoded.userId}`);
-                trackActiveSession(decoded.userId, decoded.sessionId, decoded.tokenId);
-            } else if (isSessionExpired(decoded.userId, decoded.sessionId)) {
-                return res.status(401).json({ 
-                    error: 'Session expired',
-                    code: 'SESSION_EXPIRED'
-                });
+                await trackActiveSession(decoded.userId, decoded.sessionId, decoded.tokenId);
             }
         }
-        
+
         // Verify user still exists
         const user = await getUserById(decoded.userId);
         if (!user) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 error: 'User not found',
                 code: 'USER_NOT_FOUND'
             });
         }
-        
+
         // Update session activity (only for enhanced tokens)
         if (decoded.sessionId) {
-            updateSessionActivity(decoded.userId, decoded.sessionId);
+            await updateSessionActivity(decoded.userId, decoded.sessionId);
         }
         
         // Attach user info to request
@@ -240,36 +211,16 @@ const verifyTokenEnhanced = async (req, res, next) => {
 /**
  * Logout function - blacklist token and remove session
  */
-function logout(userId, sessionId, tokenId) {
-    // Blacklist the token
-    blacklistToken(tokenId);
-    
-    // Remove session
-    const userSessions = activeSessions.get(userId);
-    if (userSessions) {
-        userSessions.delete(sessionId);
-        if (userSessions.size === 0) {
-            activeSessions.delete(userId);
-        }
-    }
-    
+async function logout(userId, sessionId, tokenId) {
+    await sessionStore.deleteSession(userId, sessionId, tokenId);
     return true;
 }
 
 /**
  * Logout all sessions for a user
  */
-function logoutAllSessions(userId) {
-    const userSessions = activeSessions.get(userId);
-    if (userSessions) {
-        // Blacklist all tokens for this user
-        for (const [sessionId, sessionData] of userSessions) {
-            blacklistToken(sessionData.tokenId);
-        }
-        // Remove all sessions
-        activeSessions.delete(userId);
-    }
-    
+async function logoutAllSessions(userId) {
+    await sessionStore.deleteAllUserSessions(userId);
     return true;
 }
 
@@ -279,33 +230,33 @@ function logoutAllSessions(userId) {
 async function refreshAccessToken(refreshToken) {
     try {
         const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
-        
+
         if (decoded.type !== 'refresh') {
             throw new Error('Invalid refresh token type');
         }
-        
-        if (isTokenBlacklisted(decoded.tokenId)) {
+
+        if (await isTokenBlacklisted(decoded.tokenId)) {
             throw new Error('Refresh token has been revoked');
         }
-        
-        if (isSessionExpired(decoded.userId, decoded.sessionId)) {
+
+        if (!await isSessionValid(decoded.userId, decoded.sessionId)) {
             throw new Error('Session expired');
         }
-        
+
         // Verify user still exists
         const user = await getUserById(decoded.userId);
         if (!user) {
             throw new Error('User not found');
         }
-        
+
         // Generate new tokens
         const tokens = generateTokens(decoded.userId, user.email);
-        
+
         // Blacklist old tokens
-        blacklistToken(decoded.tokenId);
-        
+        await blacklistToken(decoded.tokenId);
+
         return tokens;
-        
+
     } catch (error) {
         throw new Error('Invalid refresh token: ' + error.message);
     }
@@ -314,18 +265,8 @@ async function refreshAccessToken(refreshToken) {
 /**
  * Get active sessions for a user
  */
-function getActiveSessions(userId) {
-    const userSessions = activeSessions.get(userId);
-    if (!userSessions) {
-        return [];
-    }
-    
-    return Array.from(userSessions.entries()).map(([sessionId, sessionData]) => ({
-        sessionId,
-        createdAt: new Date(sessionData.createdAt),
-        lastActivity: new Date(sessionData.lastActivity),
-        isExpired: isSessionExpired(userId, sessionId)
-    }));
+async function getActiveSessions(userId) {
+    return await sessionStore.getActiveSessions(userId);
 }
 
 module.exports = {

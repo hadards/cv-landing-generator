@@ -117,8 +117,8 @@ router.post('/logout-all', verifyTokenEnhanced, async (req, res) => {
 router.get('/active', verifyTokenEnhanced, async (req, res) => {
     try {
         const { userId, sessionId } = req.user;
-        
-        const sessions = getActiveSessions(userId);
+
+        const sessions = await getActiveSessions(userId);
         
         // Mark current session
         const sessionsWithCurrent = sessions.map(session => ({
@@ -155,9 +155,9 @@ router.delete('/:sessionId',
                 message: 'Use /logout endpoint to terminate current session'
             });
         }
-        
+
         // Get user sessions
-        const sessions = getActiveSessions(userId);
+        const sessions = await getActiveSessions(userId);
         const targetSession = sessions.find(s => s.sessionId === sessionId);
         
         if (!targetSession) {
