@@ -3,13 +3,14 @@
 
 const path = require('path');
 const fs = require('fs');
+const { PATHS } = require('../../constants');
 
 class SecurePathService {
     constructor() {
         // Define secure base directories
         this.baseDir = path.resolve(__dirname, '../../..');
-        this.uploadsDir = path.join(this.baseDir, 'uploads');
-        this.generatedDir = path.join(this.baseDir, 'generated');
+        this.uploadsDir = path.join(this.baseDir, PATHS.UPLOADS_DIR);
+        this.generatedDir = path.join(this.baseDir, PATHS.GENERATED_DIR);
         this.templatesDir = path.join(__dirname, '../templates');
     }
 

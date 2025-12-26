@@ -47,7 +47,8 @@ const {
     FILE_ENTROPY_THRESHOLD,
     FILE_CACHE_TTL_MS,
     FILE_CACHE_MAX_SIZE,
-    JOB_STATUS
+    JOB_STATUS,
+    PATHS
 } = require('../constants');
 
 const router = express.Router();
@@ -61,7 +62,7 @@ let queueManager;
 
 // Configure multer for file uploads
 const upload = multer({
-    dest: 'uploads/',
+    dest: PATHS.UPLOADS_DIR,
     limits: {
         fileSize: MAX_FILE_UPLOAD_SIZE_BYTES,
     },

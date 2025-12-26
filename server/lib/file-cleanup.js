@@ -2,11 +2,12 @@
 const fs = require('fs').promises;
 const path = require('path');
 const metricsCollector = require('./metrics-collector');
+const { PATHS } = require('../constants');
 
 class FileCleanupManager {
     constructor() {
-        this.uploadsDir = path.join(__dirname, '..', 'uploads');
-        this.generatedDir = path.join(__dirname, '..', 'generated');
+        this.uploadsDir = path.join(__dirname, '..', '..', PATHS.UPLOADS_DIR);
+        this.generatedDir = path.join(__dirname, '..', '..', PATHS.GENERATED_DIR);
         this.cleanupIntervals = new Map();
         this.isRunning = false;
         

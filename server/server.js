@@ -24,7 +24,8 @@ const {
     DEFAULT_RATE_LIMIT_MAX_REQUESTS,
     MAX_ARCHIVE_SIZE_BYTES,
     MEMORY_PRESSURE_THRESHOLD_MB,
-    THIRTY_SECONDS_MS
+    THIRTY_SECONDS_MS,
+    PATHS
 } = require('./constants');
 
 // Import monitoring systems
@@ -178,10 +179,14 @@ app.use(express.urlencoded({ limit: maxFileSize, extended: true }));
 // after authentication middleware (verifyTokenEnhanced) to ensure user context
 
 // Create required directories
-const uploadsDir = path.join(__dirname, 'uploads');
-const generatedDir = path.join(__dirname, 'generated');
 const fs = require('fs');
+const uploadsDir = path.join(__dirname, '..', PATHS.UPLOADS_DIR);
+const generatedDir = path.join(__dirname, '..', PATHS.GENERATED_DIR);
+const outputDir = path.join(__dirname, '..', PATHS.OUTPUT_DIR);
 
+if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+}
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }

@@ -105,6 +105,13 @@ module.exports = {
         VERY_LONG_TEXT_MAX: 10000
     },
 
+    // ===== DIRECTORY PATHS =====
+    PATHS: {
+        OUTPUT_DIR: 'output',
+        UPLOADS_DIR: 'output/uploads',
+        GENERATED_DIR: 'output/generated'
+    },
+
     // ===== OTHER =====
     FILE_ENTROPY_THRESHOLD: 7.5
 };

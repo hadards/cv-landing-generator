@@ -2,6 +2,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { Pool } = require('pg');
+const { PATHS } = require('../constants');
 
 class HealthMonitor {
     constructor() {
@@ -182,8 +183,8 @@ class HealthMonitor {
     
     async checkFilesystem() {
         const checks = {
-            uploads: path.join(__dirname, '..', 'uploads'),
-            generated: path.join(__dirname, '..', 'generated')
+            uploads: path.join(__dirname, '..', '..', PATHS.UPLOADS_DIR),
+            generated: path.join(__dirname, '..', '..', PATHS.GENERATED_DIR)
         };
         
         const results = {};
