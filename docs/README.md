@@ -9,91 +9,115 @@ Welcome to the comprehensive technical documentation for the CV Landing Generato
 ## Quick Navigation
 
 ### Getting Started
-- [Development Setup Guide](development/getting-started.md) - Set up your local environment in 30 minutes
-- [Local Development](development/local-development.md) - Running backend and frontend locally
-- [Environment Variables](deployment/environment-variables.md) - Complete list of configuration options
+- [Development Setup Guide](development/getting-started.md) ✓ - Set up your local environment
 
 ### Architecture
-- [Architecture Overview](architecture/overview.md) - High-level system design and components
-- [Backend Architecture](architecture/backend.md) - Express server, middleware, routes
-- [Frontend Architecture](architecture/frontend.md) - Angular components and services
-- [Database Architecture](architecture/database.md) - PostgreSQL schema and relationships
-- [Data Flow Diagrams](architecture/data-flow.md) - How data moves through the system
-- [File Storage System](architecture/file-storage.md) - Ephemeral vs persistent storage
-- [Third-Party Integrations](architecture/third-party-integrations.md) - Google, GitHub, Gemini AI, Supabase
-
-### Features
-- [Authentication](features/authentication.md) - Google OAuth and JWT sessions
-- [CV Processing Pipeline](features/cv-processing.md) - Upload → Extract → AI → Generate
-- [Queue System](features/queue-system.md) - Single-job queue with position tracking
-- [Landing Page Generation](features/landing-page-generation.md) - Template processing
-- [GitHub Publishing](features/github-publishing.md) - OAuth and Pages deployment
-- [File Cleanup](features/file-cleanup.md) - Automated cleanup strategies
-- [Session Management](features/session-management.md) - Multi-device login support
-- [Rate Limiting](features/rate-limiting.md) - IP-based and per-user limits
-
-### API Reference
-- [API Overview](api/overview.md) - Conventions, authentication, error handling
-- [Auth Endpoints](api/auth-endpoints.md) - `/api/auth/*` with examples
-- [CV Endpoints](api/cv-endpoints.md) - `/api/cv/*` with examples
-- [GitHub Endpoints](api/github-endpoints.md) - `/api/github/*` with examples
-- [Session Endpoints](api/session-endpoints.md) - `/api/session/*` with examples
-- [Legal Endpoints](api/legal-endpoints.md) - `/api/legal/*` with examples
-- [Health Endpoints](api/health-endpoints.md) - `/api/health/*` with examples
+- [File Storage System](architecture/file-storage.md) ✓ - Ephemeral vs persistent storage
 
 ### Database
-- [Database Schema](database/schema.md) - All 11 tables with field descriptions
-- [Table Relationships](database/relationships.md) - Foreign keys and CASCADE rules
-- [Database Indexes](database/indexes.md) - All 33 indexes explained
-- [Database Functions](database/functions.md) - Cleanup and maintenance functions
-- [Data Retention](database/data-retention.md) - What's kept and what's deleted
-- [Common Queries](database/queries.md) - Query patterns and examples
-
-### Security
-- [Authentication Security](security/authentication.md) - OAuth, JWT, session tracking
-- [Authorization](security/authorization.md) - Resource ownership verification
-- [Rate Limiting](security/rate-limiting.md) - Global and per-user limits
-- [Input Validation](security/input-validation.md) - File validation and sanitization
-- [Encryption](security/encryption.md) - GitHub tokens and database SSL
-- [CSRF Protection](security/csrf-protection.md) - Token generation and verification
-- [Compliance](security/compliance.md) - GDPR, data export, account deletion
-
-### Development
-- [Getting Started](development/getting-started.md) - Environment setup
-- [Local Development](development/local-development.md) - Running the app locally
-- [Testing Strategy](development/testing.md) - LLM testing and test patterns
-- [Debugging Guide](development/debugging.md) - Common issues and solutions
-- [Code Style Guide](development/code-style.md) - Conventions and patterns
-- [Contributing](development/contributing.md) - Git workflow and PR process
-
-### Deployment
-- [Production Checklist](deployment/production-checklist.md) - Pre-deployment verification
-- [Environment Variables](deployment/environment-variables.md) - All env vars explained
-- [Database Setup](deployment/database-setup.md) - Running schema migrations
-- [Hosting Platforms](deployment/hosting-platforms.md) - Render, Heroku, Vercel
-- [Monitoring](deployment/monitoring.md) - Health checks and metrics
-- [Troubleshooting](deployment/troubleshooting.md) - Common production issues
-
-### Code Reference
-- [Backend Files](code/backend-files.md) - All backend files with purposes
-- [Frontend Files](code/frontend-files.md) - All frontend files with purposes
-- [Middleware Chain](code/middleware-chain.md) - Request processing pipeline
-- [Utility Modules](code/utility-modules.md) - Encryption, sanitization, paths
-- [Constants](code/constants.md) - Application constants explained
+- [Database Schema](database/schema.md) ✓ - All tables with field descriptions
 
 ### Visual Diagrams
-- [Architecture Diagram](diagrams/architecture-overview.md) - System components
-- [CV Processing Flow](diagrams/data-flow-cv-processing.md) - Upload to download
-- [Authentication Flow](diagrams/data-flow-authentication.md) - Login and sessions
-- [GitHub Publishing Flow](diagrams/data-flow-github-publishing.md) - OAuth to deployment
-- [Database ERD](diagrams/database-erd.md) - Entity relationship diagram
-- [Middleware Pipeline](diagrams/middleware-chain.md) - Request processing
-- [File Lifecycle](diagrams/file-lifecycle.md) - Upload and cleanup
+- [CV Processing Flow](diagrams/data-flow-cv-processing.md) ✓ - Upload to download
+- [Authentication Flow](diagrams/data-flow-authentication.md) ✓ - Login and sessions
 
-### Additional Resources
-- [Searchable Index](INDEX.md) - Find topics quickly
-- [Glossary](GLOSSARY.md) - Technical terms explained
-- [FAQ](FAQ.md) - Frequently asked questions
+---
+
+## Documentation Status
+
+The following documentation is currently available (marked with ✓). Additional documentation can be created as needed.
+
+### Completed Documentation
+- Getting Started Guide
+- File Storage Architecture
+- Database Schema
+- CV Processing Flow Diagram
+- Authentication Flow Diagram
+
+### Planned Documentation (Not Yet Created)
+See the section below for documentation that is referenced but not yet written. These can be created on demand.
+
+<details>
+<summary>Click to see planned documentation outline</summary>
+
+### Architecture (Planned)
+- Architecture Overview - High-level system design and components
+- Backend Architecture - Express server, middleware, routes
+- Frontend Architecture - Angular components and services
+- Database Architecture - PostgreSQL schema and relationships
+- Data Flow Diagrams - How data moves through the system
+- Third-Party Integrations - Google, GitHub, Gemini AI, Supabase
+
+### Features (Planned)
+- Authentication - Google OAuth and JWT sessions
+- CV Processing Pipeline - Upload → Extract → AI → Generate
+- Queue System - Single-job queue with position tracking
+- Landing Page Generation - Template processing
+- GitHub Publishing - OAuth and Pages deployment
+- File Cleanup - Automated cleanup strategies
+- Session Management - Multi-device login support
+- Rate Limiting - IP-based and per-user limits
+
+### API Reference (Planned)
+- API Overview - Conventions, authentication, error handling
+- Auth Endpoints - `/api/auth/*` with examples
+- CV Endpoints - `/api/cv/*` with examples
+- GitHub Endpoints - `/api/github/*` with examples
+- Session Endpoints - `/api/session/*` with examples
+- Legal Endpoints - `/api/legal/*` with examples
+- Health Endpoints - `/api/health/*` with examples
+
+### Database (Planned)
+- Table Relationships - Foreign keys and CASCADE rules
+- Database Indexes - All indexes explained
+- Database Functions - Cleanup and maintenance functions
+- Data Retention - What's kept and what's deleted
+- Common Queries - Query patterns and examples
+
+### Security (Planned)
+- Authentication Security - OAuth, JWT, session tracking
+- Authorization - Resource ownership verification
+- Rate Limiting - Global and per-user limits
+- Input Validation - File validation and sanitization
+- Encryption - GitHub tokens and database SSL
+- CSRF Protection - Token generation and verification
+- Compliance - GDPR, data export, account deletion
+
+### Development (Planned)
+- Local Development - Running the app locally
+- Testing Strategy - LLM testing and test patterns
+- Debugging Guide - Common issues and solutions
+- Code Style Guide - Conventions and patterns
+- Contributing - Git workflow and PR process
+
+### Deployment (Planned)
+- Production Checklist - Pre-deployment verification
+- Environment Variables - All env vars explained
+- Database Setup - Running schema migrations
+- Hosting Platforms - Render, Heroku, Vercel
+- Monitoring - Health checks and metrics
+- Troubleshooting - Common production issues
+
+### Code Reference (Planned)
+- Backend Files - All backend files with purposes
+- Frontend Files - All frontend files with purposes
+- Middleware Chain - Request processing pipeline
+- Utility Modules - Encryption, sanitization, paths
+- Constants - Application constants explained
+
+### Visual Diagrams (Planned)
+- Architecture Diagram - System components
+- GitHub Publishing Flow - OAuth to deployment
+- Database ERD - Entity relationship diagram
+- Middleware Pipeline - Request processing
+- File Lifecycle - Upload and cleanup
+
+### Additional Resources (Planned)
+- Searchable Index - Find topics quickly
+- Glossary - Technical terms explained
+- FAQ - Frequently asked questions
+
+</details>
 
 ---
 
@@ -186,7 +210,7 @@ GitHub Pages Enabled → Live URL Returned
 npm install
 
 # Start backend only
-npm run dev:api
+npm run dev:backend
 
 # Start frontend only
 npm run dev:frontend
@@ -194,8 +218,8 @@ npm run dev:frontend
 # Start both concurrently
 npm run dev
 
-# Test LLM client
-npm run test:llm
+# Test database connection
+npm run db:test
 ```
 
 ### Database Setup
