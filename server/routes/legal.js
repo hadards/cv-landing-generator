@@ -20,7 +20,7 @@ marked.setOptions({
  */
 const getLegalDocument = async (filename) => {
     try {
-        const filePath = path.join(__dirname, '..', '..', `${filename}.md`);
+        const filePath = path.join(__dirname, '..', `${filename}.md`);
         const content = await fs.readFile(filePath, 'utf8');
         
         // Extract title and last updated from markdown content
