@@ -86,16 +86,17 @@ app.use((req, res, next) => {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'"],
-                scriptSrc: ["'self'"],
-                imgSrc: ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com"],
-                connectSrc: ["'self'", "https://api.github.com", "https://github.com"],
-                fontSrc: ["'self'"],
+                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com"],
+                scriptSrcAttr: ["'unsafe-inline'"],
+                imgSrc: ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com", "https://*.googleusercontent.com"],
+                connectSrc: ["'self'", "https://api.github.com", "https://github.com", "https://accounts.google.com", "https://*.googleapis.com"],
+                fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
                 objectSrc: ["'none'"],
                 mediaSrc: ["'self'"],
-                frameSrc: ["'self'"],
+                frameSrc: ["'self'", "https://accounts.google.com"],
                 frameAncestors: ["'self'"],
-                formAction: ["'self'", "https://github.com"],
+                formAction: ["'self'", "https://github.com", "https://accounts.google.com"],
             },
         },
         crossOriginEmbedderPolicy: false
@@ -138,21 +139,30 @@ app.use('/api/github/', githubLimiter);
 app.use('/api/', limiter);
 
 // CORS configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
     : [
         process.env.FRONTEND_URL || 'http://localhost:4200',
         process.env.API_URL || 'http://localhost:3000'
     ];
 
+// In production, when frontend and backend are on same domain, also allow that
+if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
+    // Extract base URL without trailing slash
+    const baseUrl = process.env.FRONTEND_URL.replace(/\/$/, '');
+    if (!allowedOrigins.includes(baseUrl)) {
+        allowedOrigins.push(baseUrl);
+    }
+}
+
 // Add GitHub OAuth domains for redirects
 const githubDomains = ['https://github.com', 'https://api.github.com'];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps, curl, OAuth redirects)
+        // Allow requests with no origin (like mobile apps, curl, OAuth redirects, same-origin)
         if (!origin) return callback(null, true);
-        
+
         // Allow configured origins
         if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
@@ -210,33 +220,59 @@ app.use('/api/github', githubRoutes);
 app.use('/api/session', sessionRoutes);
 app.use('/api/legal', legalRoutes);
 
+// Serve Angular static files in production (BEFORE error monitoring)
+const nodeEnv = (process.env.NODE_ENV || '').trim();
+if (nodeEnv === 'production') {
+    const frontendPath = path.join(__dirname, '../frontend/dist/frontend/browser');
+
+    console.log('=================================');
+    console.log('PRODUCTION MODE: Static file serving enabled');
+    console.log('Frontend path:', frontendPath);
+    console.log('=================================');
+
+    // Serve static files
+    app.use(express.static(frontendPath));
+
+    // Send all non-API requests to Angular (SPA routing)
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+} else {
+    console.log('=================================');
+    console.log('DEVELOPMENT MODE: Static file serving DISABLED');
+    console.log('NODE_ENV:', JSON.stringify(process.env.NODE_ENV));
+    console.log('=================================');
+}
+
 // Error monitoring middleware
 app.use(errorMonitoring);
 
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Global error handler:', error);
-    
+
     if (error.type === 'entity.too.large') {
         return res.status(413).json({
             error: 'File too large',
             message: 'File size exceeds the 50MB limit'
         });
     }
-    
+
     res.status(500).json({
         error: 'Internal server error',
         message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : error.message
     });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-    res.status(404).json({
-        error: 'Not Found',
-        message: 'The requested resource was not found'
+// 404 handler (only in development)
+if (nodeEnv !== 'production') {
+    app.use('*', (req, res) => {
+        res.status(404).json({
+            error: 'Not Found',
+            message: 'The requested resource was not found'
+        });
     });
-});
+}
 
 // Test database connection
 async function testDatabaseConnection() {

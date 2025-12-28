@@ -6,6 +6,8 @@
     "dev:frontend": "cd frontend && ng serve",
     "dev:backend": "node server/server.js",
     "build": "cd frontend && ng build",
+    "postinstall": "npm run build",
+    "start": "node server/server.js",
     "db:test": "node -e \"require('dotenv').config(); const db = require('./server/database/index'); db.testConnection().then(r => console.log(r)).then(() => db.closeDatabase());\""
   },
   "dependencies": {

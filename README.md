@@ -281,11 +281,11 @@ See `.env.example` for a complete list of configuration options.
 Comprehensive documentation is available in the `docs/` directory:
 
 - [Getting Started Guide](docs/development/getting-started.md)
+- [Deployment Guide](docs/deployment/deployment-guide.md) - Platform comparison and Render setup
 - [Architecture Overview](docs/architecture/)
 - [API Reference](docs/api/)
 - [Database Schema](docs/database/schema.md)
 - [Development Guide](docs/development/)
-- [Deployment Guide](docs/deployment/)
 
 ## License
 

@@ -11,6 +11,9 @@ Welcome to the comprehensive technical documentation for the CV Landing Generato
 ### Getting Started
 - [Development Setup Guide](development/getting-started.md) ✓ - Set up your local environment
 
+### Deployment
+- [Deployment Guide](deployment/deployment-guide.md) ✓ - Platform comparison and Render setup
+
 ### Architecture
 - [File Storage System](architecture/file-storage.md) ✓ - Ephemeral vs persistent storage
 
@@ -29,6 +32,7 @@ The following documentation is currently available (marked with ✓). Additional
 
 ### Completed Documentation
 - Getting Started Guide
+- Deployment Guide
 - File Storage Architecture
 - Database Schema
 - CV Processing Flow Diagram
@@ -90,13 +94,11 @@ See the section below for documentation that is referenced but not yet written. 
 - Code Style Guide - Conventions and patterns
 - Contributing - Git workflow and PR process
 
-### Deployment (Planned)
-- Production Checklist - Pre-deployment verification
-- Environment Variables - All env vars explained
-- Database Setup - Running schema migrations
-- Hosting Platforms - Render, Heroku, Vercel
-- Monitoring - Health checks and metrics
-- Troubleshooting - Common production issues
+### Deployment
+- ✓ Deployment Guide - Platform comparison and Render setup
+- (Planned) Advanced Cloudflare deployment
+- (Planned) Custom domain setup
+- (Planned) CI/CD pipeline configuration
 
 ### Code Reference (Planned)
 - Backend Files - All backend files with purposes
@@ -261,7 +263,7 @@ This documentation follows these principles:
 - **New to the project?** Start with [Getting Started Guide](development/getting-started.md)
 - **Confused by a term?** See the [Glossary](GLOSSARY.md)
 - **Common questions?** Check the [FAQ](FAQ.md)
-- **Deployment issues?** See [Troubleshooting](deployment/troubleshooting.md)
+- **Deployment issues?** See [Deployment Guide - Troubleshooting](deployment/deployment-guide.md#troubleshooting)
 
 ---
 
