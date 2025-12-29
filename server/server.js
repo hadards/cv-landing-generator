@@ -77,16 +77,14 @@ if (llmClientType === 'ollama' && !process.env.OLLAMA_BASE_URL) {
 // Apply CSP conditionally - skip for preview endpoints
 app.use((req, res, next) => {
     // Skip CSP for preview and static file endpoints that need iframe embedding
-    // Also skip for root path (homepage/login) to allow Google OAuth
     const isPreviewRoute = req.path.includes('/api/cv/preview') || req.path.includes('/api/cv/static');
-    const isLoginPage = req.path === '/' || req.path === '/login';
 
-    if (isPreviewRoute || isLoginPage) {
-        // Don't apply CSP for these routes
+    if (isPreviewRoute) {
+        // Don't apply any CSP for preview routes to allow iframe embedding
         return next();
     }
 
-    // Apply normal CSP for all other routes
+    // Apply CSP with Google OAuth support for all other routes
     helmet({
         contentSecurityPolicy: {
             directives: {
@@ -99,12 +97,14 @@ app.use((req, res, next) => {
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
                 objectSrc: ["'none'"],
                 mediaSrc: ["'self'"],
-                frameSrc: ["'self'", "https://accounts.google.com"],
-                frameAncestors: ["'self'"],
+                frameSrc: ["'self'", "https://accounts.google.com", "https://*.google.com"],
+                childSrc: ["'self'", "https://accounts.google.com"],
+                frameAncestors: ["'none'"],
                 formAction: ["'self'", "https://github.com", "https://accounts.google.com"],
             },
         },
-        crossOriginEmbedderPolicy: false
+        crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: false
     })(req, res, next);
 });
 
