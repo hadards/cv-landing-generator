@@ -67,14 +67,15 @@ const upload = multer({
         fileSize: MAX_FILE_UPLOAD_SIZE_BYTES,
     },
     fileFilter: (req, file, cb) => {
-        // Basic MIME type validation
-        const allowedTypes = [
-            ALLOWED_MIME_TYPES.PDF,
-            ALLOWED_MIME_TYPES.DOC,
-            ALLOWED_MIME_TYPES.DOCX,
-            // Allow text files for testing
-            ALLOWED_MIME_TYPES.TEXT
-        ];
+        // Get file extension (case-insensitive)
+        const fileExtension = path.extname(file.originalname).toLowerCase();
+
+        // Allowed file types with extension validation
+        const allowedFormats = {
+            '.pdf': ALLOWED_MIME_TYPES.PDF,
+            '.docx': ALLOWED_MIME_TYPES.DOCX,
+            '.txt': ALLOWED_MIME_TYPES.TEXT
+        };
 
         // Sanitize filename - remove dangerous characters
         const sanitizedFilename = file.originalname
@@ -83,11 +84,21 @@ const upload = multer({
 
         file.originalname = sanitizedFilename;
 
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed.'));
+        // Check if extension is supported
+        if (!allowedFormats[fileExtension]) {
+            if (fileExtension === '.doc') {
+                return cb(new Error('Legacy DOC format is not supported. Please save your document as DOCX (File > Save As > Word Document (.docx)) and upload again.'));
+            }
+            return cb(new Error('Invalid file type. Only PDF, DOCX, and TXT files are allowed.'));
         }
+
+        // Validate MIME type matches extension
+        const expectedMimeType = allowedFormats[fileExtension];
+        if (file.mimetype !== expectedMimeType && file.mimetype !== 'application/octet-stream') {
+            return cb(new Error(`File type mismatch. File extension is ${fileExtension} but content type is ${file.mimetype}.`));
+        }
+
+        cb(null, true);
     }
 });
 
@@ -457,8 +468,28 @@ router.post('/upload', verifyTokenEnhanced, ...rateLimitOnly, upload.single('cvF
 
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({
-            error: 'Upload failed',
+
+        // Determine appropriate status code based on error type
+        let statusCode = 500;
+        let errorTitle = 'Upload failed';
+
+        // Handle file type validation errors
+        if (error.message.includes('Invalid file type') ||
+            error.message.includes('not supported') ||
+            error.message.includes('File type mismatch')) {
+            statusCode = 400;
+            errorTitle = 'Invalid file format';
+        }
+
+        // Handle file size errors
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            statusCode = 413;
+            errorTitle = 'File too large';
+            error.message = `File size exceeds the ${MAX_FILE_UPLOAD_SIZE_BYTES / 1024 / 1024}MB limit`;
+        }
+
+        res.status(statusCode).json({
+            error: errorTitle,
             message: error.message
         });
     }
@@ -545,8 +576,24 @@ router.post('/process',
 
     } catch (error) {
         console.error('CV processing error:', error);
-        res.status(500).json({
-            error: 'CV processing failed',
+
+        // Determine appropriate status code based on error type
+        let statusCode = 500;
+        let errorTitle = 'CV processing failed';
+
+        if (error.message.includes('not supported') ||
+            error.message.includes('Unsupported file type') ||
+            error.message.includes('legacy DOC')) {
+            statusCode = 400;
+            errorTitle = 'Unsupported file format';
+        } else if (error.message.includes('No text could be extracted') ||
+                   error.message.includes('empty or corrupted')) {
+            statusCode = 400;
+            errorTitle = 'File processing error';
+        }
+
+        res.status(statusCode).json({
+            error: errorTitle,
             message: error.message
         });
     }

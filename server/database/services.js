@@ -162,15 +162,15 @@ const checkApiLimits = async (userId, apiType) => {
 // ==========================================
 
 const saveFileUpload = async (fileData) => {
-    const { id, user_id, filename, filepath, file_size, mime_type, extracted_text, structured_data } = fileData;
-    
+    const { id, user_id, filename, original_filename, filepath, file_size, mime_type, extracted_text, structured_data } = fileData;
+
     try {
         const result = await query(`
-            INSERT INTO file_uploads (id, user_id, filename, filepath, file_size, mime_type, extracted_text, structured_data)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO file_uploads (id, user_id, filename, original_filename, filepath, file_size, mime_type, extracted_text, structured_data)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *;
-        `, [id, user_id, filename, filepath, file_size, mime_type, extracted_text, JSON.stringify(structured_data)]);
-        
+        `, [id, user_id, filename, original_filename || filename, filepath, file_size, mime_type, extracted_text, JSON.stringify(structured_data)]);
+
         const file = result.rows[0];
         if (file.structured_data && typeof file.structured_data === 'string') {
             file.structured_data = JSON.parse(file.structured_data);

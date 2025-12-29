@@ -43,7 +43,6 @@ module.exports = {
     // ===== MIME TYPES =====
     ALLOWED_MIME_TYPES: {
         PDF: 'application/pdf',
-        DOC: 'application/msword',
         DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         TEXT: 'text/plain'
     },

@@ -165,30 +165,38 @@ export class GitHubPublishService {
   getGitHubAuthUrl(returnUrl?: string): string {
     console.log('=== GITHUB AUTH URL GENERATION ===');
     console.log('getGitHubAuthUrl called with returnUrl:', returnUrl);
-    
+
     const user = this.authService.getUser();
     console.log('User from auth service:', user);
-    
+
     if (!user) {
       console.error('No user found in auth service');
       throw new Error('User not logged in');
     }
-    
+
     if (!user.id) {
       console.error('User has no ID:', user);
       throw new Error('User ID is missing');
     }
-    
+
     // Handle popup mode vs redirect mode
     const finalReturnUrl = returnUrl === 'popup' ? 'popup' : (returnUrl || window.location.pathname);
     console.log('Final return URL:', finalReturnUrl);
     console.log('API URL:', this.apiUrl);
     console.log('User ID:', user.id);
-    
-    const authUrl = `${this.apiUrl}/github/auth?userId=${user.id}&returnUrl=${encodeURIComponent(finalReturnUrl)}`;
+
+    // For popup windows, we need an absolute URL
+    // If apiUrl is relative (starts with /), prepend the current origin
+    let baseUrl = this.apiUrl;
+    if (baseUrl.startsWith('/')) {
+      baseUrl = window.location.origin + baseUrl;
+      console.log('Converted relative API URL to absolute:', baseUrl);
+    }
+
+    const authUrl = `${baseUrl}/github/auth?userId=${user.id}&returnUrl=${encodeURIComponent(finalReturnUrl)}`;
     console.log('Generated auth URL:', authUrl);
     console.log('=== GITHUB AUTH URL GENERATION END ===');
-    
+
     return authUrl;
   }
 

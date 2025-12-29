@@ -22,12 +22,13 @@ class IntelligentCVProcessorBase {
     async extractTextFromFile(filePath, mimeType) {
         try {
             let extractedText = '';
-            
+
             switch (mimeType) {
                 case 'application/pdf':
                     extractedText = await this.extractFromPDF(filePath);
                     break;
                 case 'application/msword':
+                    throw new Error('Legacy DOC format is not supported. Please save your document as DOCX format and upload again.');
                 case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
                     extractedText = await this.extractFromWord(filePath);
                     break;
@@ -35,18 +36,32 @@ class IntelligentCVProcessorBase {
                     extractedText = fs.readFileSync(filePath, 'utf8');
                     break;
                 default:
-                    throw new Error(`Unsupported file type: ${mimeType}`);
+                    throw new Error(`Unsupported file type: ${mimeType}. Only PDF, DOCX, and TXT files are supported.`);
             }
-            
+
             if (!extractedText || extractedText.trim().length === 0) {
-                throw new Error('No text could be extracted from the file');
+                throw new Error('No text could be extracted from the file. The file may be empty or corrupted.');
             }
-            
+
             return extractedText.trim();
-            
+
         } catch (error) {
             console.error('Text extraction failed:', error.message);
-            throw new Error(`Failed to extract text: ${error.message}`);
+
+            // Provide more user-friendly error messages
+            if (error.message.includes('body element')) {
+                throw new Error('This appears to be a legacy DOC file. Please save your document as DOCX format (File > Save As > Word Document (.docx)) and upload again.');
+            }
+
+            // Re-throw user-friendly errors as-is
+            if (error.message.includes('not supported') ||
+                error.message.includes('Unsupported file type') ||
+                error.message.includes('No text could be extracted')) {
+                throw error;
+            }
+
+            // Wrap technical errors with user-friendly message
+            throw new Error(`Failed to extract text from file: ${error.message}`);
         }
     }
 
@@ -69,8 +84,18 @@ class IntelligentCVProcessorBase {
     async extractFromWord(filePath) {
         try {
             const result = await mammoth.extractRawText({path: filePath});
+
+            if (!result || !result.value) {
+                throw new Error('No text could be extracted from the Word document');
+            }
+
             return result.value;
         } catch (error) {
+            // Detect legacy DOC format errors
+            if (error.message.includes('body element') || error.message.includes('not a docx file')) {
+                throw new Error('This appears to be a legacy DOC file. Only DOCX format is supported. Please save your document as DOCX (File > Save As > Word Document (.docx)) and upload again.');
+            }
+
             throw new Error(`Word document extraction failed: ${error.message}`);
         }
     }
