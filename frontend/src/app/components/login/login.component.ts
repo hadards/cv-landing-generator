@@ -58,7 +58,7 @@ declare global {
                 <div class="w-5 h-5 bg-green-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0" style="border: 1px solid rgba(34, 197, 94, 0.3);">
                   <span class="text-xs text-green-400 font-bold">✓</span>
                 </div>
-                Create unlimited landing pages
+                Create your own landing pages
               </div>
               <div class="flex items-center text-sm text-white/80">
                 <div class="w-5 h-5 bg-green-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0" style="border: 1px solid rgba(34, 197, 94, 0.3);">
@@ -70,7 +70,7 @@ declare global {
                 <div class="w-5 h-5 bg-green-500/20 rounded-full flex items-center justify-center mr-3 flex-shrink-0" style="border: 1px solid rgba(34, 197, 94, 0.3);">
                   <span class="text-xs text-green-400 font-bold">✓</span>
                 </div>
-                Mobile-responsive designs
+                You own the code
               </div>
             </div>
 
