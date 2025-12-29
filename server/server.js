@@ -74,37 +74,38 @@ if (llmClientType === 'ollama' && !process.env.OLLAMA_BASE_URL) {
 }
 
 // Security middleware
-// Apply CSP conditionally - skip for preview endpoints
+// Apply CSP conditionally - skip for preview endpoints and login page
 app.use((req, res, next) => {
     // Skip CSP for preview and static file endpoints that need iframe embedding
     const isPreviewRoute = req.path.includes('/api/cv/preview') || req.path.includes('/api/cv/static');
 
-    if (isPreviewRoute) {
-        // Don't apply any CSP for preview routes to allow iframe embedding
+    // Skip CSP for homepage/login to allow Google OAuth (Google's CSP requirements are complex)
+    const isPublicPage = req.path === '/' || req.path.startsWith('/chunk-') || req.path.startsWith('/main-') ||
+                         req.path.startsWith('/polyfills-') || req.path.startsWith('/styles-');
+
+    if (isPreviewRoute || isPublicPage) {
+        // Don't apply CSP for these routes
         return next();
     }
 
-    // Apply CSP with Google OAuth support for all other routes
+    // Apply strict CSP for authenticated/internal routes
     helmet({
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com"],
+                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                scriptSrc: ["'self'", "'unsafe-inline'"],
                 scriptSrcAttr: ["'unsafe-inline'"],
                 imgSrc: ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com", "https://*.googleusercontent.com"],
-                connectSrc: ["'self'", "https://api.github.com", "https://github.com", "https://accounts.google.com", "https://*.googleapis.com"],
+                connectSrc: ["'self'", "https://api.github.com", "https://github.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
                 objectSrc: ["'none'"],
                 mediaSrc: ["'self'"],
-                frameSrc: ["'self'", "https://accounts.google.com", "https://*.google.com"],
-                childSrc: ["'self'", "https://accounts.google.com"],
-                frameAncestors: ["'none'"],
-                formAction: ["'self'", "https://github.com", "https://accounts.google.com"],
+                frameSrc: ["'self'"],
+                formAction: ["'self'", "https://github.com"],
             },
         },
-        crossOriginEmbedderPolicy: false,
-        crossOriginResourcePolicy: false
+        crossOriginEmbedderPolicy: false
     })(req, res, next);
 });
 
