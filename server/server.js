@@ -77,13 +77,15 @@ if (llmClientType === 'ollama' && !process.env.OLLAMA_BASE_URL) {
 // Apply CSP conditionally - skip for preview endpoints
 app.use((req, res, next) => {
     // Skip CSP for preview and static file endpoints that need iframe embedding
+    // Also skip for root path (homepage/login) to allow Google OAuth
     const isPreviewRoute = req.path.includes('/api/cv/preview') || req.path.includes('/api/cv/static');
-    
-    if (isPreviewRoute) {
-        // Don't apply any CSP for preview routes to allow iframe embedding
+    const isLoginPage = req.path === '/' || req.path === '/login';
+
+    if (isPreviewRoute || isLoginPage) {
+        // Don't apply CSP for these routes
         return next();
     }
-    
+
     // Apply normal CSP for all other routes
     helmet({
         contentSecurityPolicy: {
