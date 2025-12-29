@@ -40,6 +40,9 @@ const perUserRateLimiter = require('./middleware/per-user-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy - required for Render (and other reverse proxies)
+app.set('trust proxy', 1);
+
 // Validate required environment variables
 const requiredEnvVars = [
     'JWT_SECRET',
