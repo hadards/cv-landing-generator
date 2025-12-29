@@ -101,7 +101,8 @@ app.use((req, res, next) => {
                 frameSrc: ["'none'"],
             },
         },
-        crossOriginEmbedderPolicy: false
+        crossOriginEmbedderPolicy: false,
+        crossOriginOpenerPolicy: false  // Disable COOP to allow Google Sign-In and OAuth popups
     })(req, res, next);
 });
 

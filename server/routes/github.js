@@ -157,7 +157,8 @@ router.get('/callback', async (req, res) => {
                         console.log('GitHub OAuth success - closing popup');
                         // Send message to parent window if available
                         if (window.opener) {
-                            window.opener.postMessage({ type: 'github-auth-success', connected: true }, '*');
+                            // Use window.location.origin for same-origin security instead of wildcard
+                            window.opener.postMessage({ type: 'github-auth-success', connected: true }, window.location.origin);
                         }
                         // Close popup
                         window.close();
@@ -198,7 +199,8 @@ router.get('/callback', async (req, res) => {
                         console.error('GitHub OAuth error - closing popup');
                         // Send error message to parent window if available
                         if (window.opener) {
-                            window.opener.postMessage({ type: 'github-auth-error', error: 'Authentication failed' }, '*');
+                            // Use window.location.origin for same-origin security instead of wildcard
+                            window.opener.postMessage({ type: 'github-auth-error', error: 'Authentication failed' }, window.location.origin);
                         }
                         // Close popup
                         window.close();
