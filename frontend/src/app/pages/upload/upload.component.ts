@@ -10,11 +10,11 @@ import { CVWizardComponent } from '../../components/cv-wizard/cv-wizard.componen
   standalone: true,
   imports: [CommonModule, CVWizardComponent],
   template: `
-    <div class="relative min-h-screen overflow-hidden py-4 md:py-8" style="background: #0a0e27;">
-      <!-- 3D Floating Orbs -->
-      <div class="floating-orb orb-purple" style="width: 350px; height: 350px; top: 15%; left: 5%; animation-delay: 0s;"></div>
-      <div class="floating-orb orb-cyan" style="width: 300px; height: 300px; bottom: 15%; right: 5%; animation-delay: 3s;"></div>
-      <div class="floating-orb orb-pink" style="width: 250px; height: 250px; top: 50%; left: 50%; animation-delay: 6s;"></div>
+    <div class="relative min-h-screen overflow-x-hidden py-4 md:py-8 w-full max-w-full" style="background: #0a0e27;">
+      <!-- 3D Floating Orbs (hidden on mobile) -->
+      <div class="floating-orb orb-purple hidden md:block" style="width: 350px; height: 350px; top: 15%; left: 5%; animation-delay: 0s;"></div>
+      <div class="floating-orb orb-cyan hidden md:block" style="width: 300px; height: 300px; bottom: 15%; right: 5%; animation-delay: 3s;"></div>
+      <div class="floating-orb orb-pink hidden md:block" style="width: 250px; height: 250px; top: 50%; left: 50%; animation-delay: 6s;"></div>
 
       <div class="container mx-auto px-4 md:px-6 relative z-10">
         <!-- Authentication Check -->

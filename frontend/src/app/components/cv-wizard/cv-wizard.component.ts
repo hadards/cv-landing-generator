@@ -650,6 +650,9 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
             // Mark new step as active
             this.wizardSteps[this.currentStep - 1].active = true;
+
+            // Scroll to top to show wizard steps
+            this.scrollToTop();
         }
     }
 
@@ -664,7 +667,14 @@ export class CVWizardComponent implements OnInit, OnDestroy {
             // Mark previous step as active and not completed
             this.wizardSteps[this.currentStep - 1].active = true;
             this.wizardSteps[this.currentStep - 1].completed = false;
+
+            // Scroll to top to show wizard steps
+            this.scrollToTop();
         }
+    }
+
+    private scrollToTop() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     getNextButtonText(): string {
