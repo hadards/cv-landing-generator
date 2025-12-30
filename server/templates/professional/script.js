@@ -1,11 +1,8 @@
 // File: templates/professional/script.js
-// Landing Page Script - Renders CV data with About Me section and theme toggle
+// Landing Page Script - Renders CV data with About Me section (Dark Mode Only)
 
 document.addEventListener('DOMContentLoaded', function () {
     console.log('Landing page loading...', cvData);
-
-    // Initialize theme
-    initializeTheme();
 
     // Helper functions
     function getInitials(name) {
@@ -76,39 +73,6 @@ document.addEventListener('DOMContentLoaded', function () {
         console.log(`Total experience: ${totalMonths} months = ${years} years`);
 
         return years;
-    }
-
-    // Theme toggle functionality
-    function initializeTheme() {
-        const themeToggle = document.getElementById('theme-toggle');
-        const sunIcon = document.getElementById('sun-icon');
-        const moonIcon = document.getElementById('moon-icon');
-        const body = document.body;
-
-        // Check for saved theme preference or default to dark
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        setTheme(savedTheme);
-
-        function setTheme(theme) {
-            if (theme === 'light') {
-                body.classList.remove('dark-theme');
-                body.classList.add('light-theme');
-                sunIcon.classList.add('hidden');
-                moonIcon.classList.remove('hidden');
-            } else {
-                body.classList.remove('light-theme');
-                body.classList.add('dark-theme');
-                sunIcon.classList.remove('hidden');
-                moonIcon.classList.add('hidden');
-            }
-            localStorage.setItem('theme', theme);
-        }
-
-        themeToggle.addEventListener('click', () => {
-            const currentTheme = body.classList.contains('light-theme') ? 'light' : 'dark';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            setTheme(newTheme);
-        });
     }
 
     // Update page title and meta
