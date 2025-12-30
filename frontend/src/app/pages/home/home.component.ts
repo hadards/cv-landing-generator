@@ -16,10 +16,6 @@ import { RouterModule, Router } from '@angular/router';
 
       <div class="container px-4 md:px-6 relative z-10 py-20">
         <div class="max-w-6xl mx-auto text-center animate-fade-in">
-          <h1 class="text-5xl md:text-7xl lg:text-8xl font-black mb-12 leading-tight text-gradient text-glow">
-            CV Landing Page Generator
-          </h1>
-
           <!-- How It Works Cards -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-7xl mx-auto mt-20">
             <!-- Step 1 -->

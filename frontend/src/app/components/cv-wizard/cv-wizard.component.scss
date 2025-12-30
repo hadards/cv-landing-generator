@@ -51,9 +51,10 @@
 }
 
 .step-indicator.completed {
-  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
-  color: white;
-  box-shadow: 0 0 30px rgba(167, 139, 250, 0.6);
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  color: white !important;
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.6) !important;
+  border: none !important;
 }
 
 .step-indicator.active {

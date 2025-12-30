@@ -359,6 +359,14 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         }
     }
 
+    regenerateContent() {
+        // Clear existing CV data and restart processing
+        this.cvData = null;
+        this.cvSections = [];
+        this.resetProcessingPhases();
+        this.startProcessing();
+    }
+
     private resetProcessingPhases() {
         this.processingPhases = [
             { name: 'Uploading CV file', status: 'completed' },
@@ -480,6 +488,17 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     }
 
     async generateWebsite() {
+        // Validate required fields before generating
+        if (!this.cvData?.personalInfo?.name || this.cvData.personalInfo.name.trim() === '') {
+            alert('Please enter your name before generating the website.');
+            return;
+        }
+
+        if (!this.cvData?.personalInfo?.email || this.cvData.personalInfo.email.trim() === '') {
+            alert('Please enter your email before generating the website.');
+            return;
+        }
+
         this.isGeneratingWebsite = true;
 
         try {
@@ -627,6 +646,12 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         return finalData;
     }
 
+    // Check if required fields are filled for website generation
+    hasRequiredFields(): boolean {
+        return !!(this.cvData?.personalInfo?.name?.trim() &&
+                  this.cvData?.personalInfo?.email?.trim());
+    }
+
     // Navigation methods
     canProceed(): boolean {
         switch (this.currentStep) {
@@ -657,6 +682,22 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     }
 
     previousStep() {
+        // Special handling for step 5 if website is already generated
+        if (this.currentStep === 5 && this.websiteGenerated) {
+            const confirmed = confirm(
+                'Going back will clear your generated website. ' +
+                'You will need to regenerate it after making changes. Continue?'
+            );
+            if (!confirmed) {
+                return; // User cancelled
+            }
+            // Clear generation state
+            this.websiteGenerated = false;
+            this.generationId = null;
+            this.generationResult = null;
+            this.isGeneratingWebsite = false;
+        }
+
         if (this.currentStep > 1) {
             // Mark current step as inactive
             this.wizardSteps[this.currentStep - 1].active = false;

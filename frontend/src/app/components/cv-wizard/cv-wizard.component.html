@@ -324,6 +324,16 @@
         <p class="warm-text-secondary mb-6">
           Your CV has been processed and content is ready for review
         </p>
+
+        <!-- Regenerate Button -->
+        <div class="mt-6">
+          <button (click)="regenerateContent()" class="btn-secondary px-6 py-3">
+            Regenerate Content
+          </button>
+          <p class="text-xs text-white/60 mt-2">
+            Click to process your CV again with AI
+          </p>
+        </div>
       </div>
     </div>
 
@@ -385,7 +395,8 @@
       <div *ngIf="!isGeneratingWebsite && !websiteGenerated" class="space-y-6">
         <div class="card max-w-md mx-auto p-8 bg-gradient-to-br from-purple-50 to-pink-50">
           <div class="space-y-6">
-            <div class="w-16 h-16 bg-gradient rounded-xl flex items-center justify-center mx-auto shadow-lg">
+            <div class="w-16 h-16 rounded-xl flex items-center justify-center mx-auto bg-gradient-to-br from-green-500 to-green-700"
+                 style="box-shadow: 0 0 30px rgba(34, 197, 94, 0.5);">
               <span class="text-white font-bold text-sm">DONE</span>
             </div>
             <div>
@@ -394,7 +405,19 @@
                 Your content is polished and ready to become a beautiful website
               </p>
             </div>
-            <button (click)="generateWebsite()" class="btn-primary w-full">
+
+            <!-- Warning if required fields missing -->
+            <div *ngIf="!hasRequiredFields()" class="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+              <p class="text-sm text-yellow-400">
+                Please go back and fill in your <strong>name</strong> and <strong>email</strong> in the editing step before generating your website.
+              </p>
+            </div>
+
+            <button (click)="generateWebsite()"
+                    [disabled]="!hasRequiredFields()"
+                    [class.opacity-50]="!hasRequiredFields()"
+                    [class.cursor-not-allowed]="!hasRequiredFields()"
+                    class="btn-primary w-full">
               Create My Website
             </button>
           </div>
@@ -489,13 +512,13 @@
 
   <!-- Navigation Footer -->
   <div class="flex flex-col sm:flex-row justify-between items-center mt-6 md:mt-8 pt-4 md:pt-6 border-t border-warm-peach gap-4">
-    <button *ngIf="currentStep > 1 && currentStep < 5" 
-            (click)="previousStep()" 
+    <button *ngIf="currentStep > 1"
+            (click)="previousStep()"
             class="btn-secondary flex items-center justify-center min-w-[120px]">
       <span class="mr-2">←</span>
       Back
     </button>
-    <div *ngIf="currentStep === 1 || currentStep === 5" class="min-w-[120px]"></div>
+    <div *ngIf="currentStep === 1" class="min-w-[120px]"></div>
     
     <div class="flex flex-col sm:flex-row items-center gap-3 md:gap-4">
       <span class="text-xs md:text-sm warm-text-secondary order-2 sm:order-1">
