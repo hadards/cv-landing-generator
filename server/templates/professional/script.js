@@ -140,6 +140,20 @@ document.addEventListener('DOMContentLoaded', function () {
         yearsExperience.textContent = years > 0 ? years + '+' : '3+';
     }
 
+    // Update projects count
+    const projectsCompleted = document.getElementById('projects-completed');
+    if (projectsCompleted) {
+        const projectCount = (cvData.projects?.length || 0) + (cvData.experience?.length || 0);
+        projectsCompleted.textContent = projectCount > 0 ? projectCount + '+' : '5+';
+    }
+
+    // Update skills count
+    const skillsCount = document.getElementById('skills-count');
+    if (skillsCount) {
+        const technicalSkillsCount = cvData.skills?.technical?.length || 0;
+        skillsCount.textContent = technicalSkillsCount > 0 ? technicalSkillsCount + '+' : '10+';
+    }
+
 
     // Update quick contact
     const quickEmail = document.getElementById('quick-email');

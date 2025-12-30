@@ -63,8 +63,9 @@ import { AuthService, User } from '../../services/auth.service';
               <button (click)="toggleUserMenu($event)"
                       class="hidden md:flex items-center space-x-3 p-2 rounded-lg hover:bg-purple-500/10 transition-colors"
                       style="background: transparent;">
-                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-purple-400" style="box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);">
-                  <img [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover">
+                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-purple-400 flex items-center justify-center bg-gradient-to-br from-purple-500 to-blue-500" style="box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);">
+                  <img *ngIf="user.picture" [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover" (error)="imageError($event)">
+                  <span *ngIf="!user.picture" class="text-white font-bold text-sm">{{ getInitials(user.name) }}</span>
                 </div>
                 <div class="hidden lg:block text-left">
                   <p class="text-sm font-semibold text-white">{{ getFirstName(user.name) }}</p>
@@ -136,8 +137,9 @@ import { AuthService, User } from '../../services/auth.service';
             <div *ngIf="user" class="border-t pt-6" style="border-color: rgba(167, 139, 250, 0.2);">
               <!-- User Info -->
               <div class="flex items-center space-x-3 mb-4 p-3 glass rounded-xl">
-                <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-purple-400">
-                  <img [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover">
+                <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-purple-400 flex items-center justify-center bg-gradient-to-br from-purple-500 to-blue-500">
+                  <img *ngIf="user.picture" [src]="user.picture" [alt]="user.name" class="w-full h-full object-cover" (error)="imageError($event)">
+                  <span *ngIf="!user.picture" class="text-white font-bold">{{ getInitials(user.name) }}</span>
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-white truncate">{{ user.name }}</p>
@@ -258,6 +260,24 @@ export class HeaderComponent implements OnInit {
 
   getFirstName(fullName: string): string {
     return fullName?.split(' ')[0] || 'User';
+  }
+
+  getInitials(fullName: string): string {
+    if (!fullName) return 'U';
+    return fullName
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  }
+
+  imageError(event: Event) {
+    // Hide image when it fails to load
+    const img = event.target as HTMLImageElement;
+    if (this.user) {
+      this.user.picture = '';
+    }
   }
 
   toggleMobileMenu() {

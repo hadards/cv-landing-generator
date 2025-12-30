@@ -451,18 +451,20 @@ export class CVProcessingService {
     // Helper methods to convert structured data to editable text
     private convertExperienceToText(experience: any[]): string {
         return experience.map(exp => {
-            let text = `${exp.title} at ${exp.company}`;
-            if (exp.location) text += ` (${exp.location})`;
-            text += `\n${exp.startDate} - ${exp.endDate}\n`;
-            text += `${exp.description}\n`;
-            
+            // Put title, company, and dates on ONE line for backend parser
+            let text = `${exp.title} ${exp.company} ${exp.startDate} - ${exp.endDate}\n`;
+
+            if (exp.description) {
+                text += `${exp.description}\n`;
+            }
+
             if (exp.achievements && exp.achievements.length > 0) {
                 text += '\nKey Achievements:\n';
                 exp.achievements.forEach((achievement: string) => {
                     text += `• ${achievement}\n`;
                 });
             }
-            
+
             return text;
         }).join('\n\n');
     }

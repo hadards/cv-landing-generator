@@ -122,7 +122,11 @@ const cvData = ${JSON.stringify(finalCvData, null, 2)};
 
             // Convert edited text back to structured data for the template
             if (cvData.experienceText) {
-                finalData.experience = this.convertTextToExperience(cvData.experienceText);
+                // Pass original structured data as reference for better parsing
+                finalData.experience = this.convertTextToExperience(
+                    cvData.experienceText,
+                    cvData.experience || []
+                );
                 console.log('Used edited experience text');
             }
 
@@ -152,149 +156,155 @@ const cvData = ${JSON.stringify(finalCvData, null, 2)};
     }
 
     // Helper methods to convert edited text back to structured data
-    convertTextToExperience(experienceText) {
+    convertTextToExperience(experienceText, originalExperience = []) {
         console.log('Converting experience text to structured data...');
         console.log('Input text length:', experienceText.length);
+        console.log('Has original structured data:', originalExperience.length > 0);
 
-        // Split by double newlines first to separate different jobs
-        let jobSections = experienceText.split('\n\n').filter(section => section.trim());
+        // If we have original structured data and it matches the text length, use it!
+        if (originalExperience.length > 0) {
+            console.log(`Using original structured data as reference (${originalExperience.length} jobs)`);
 
-        // If no double newlines, try to split by job indicators
-        if (jobSections.length === 1) {
-            // Look for patterns that indicate new jobs
-            const jobPatterns = [
-                /^(.+?)\s+at\s+(.+?)$/gm,  // "Title at Company"
-                /^(.+?)\s+-\s+(.+?)$/gm,   // "Title - Company"
-                /^\d{4}[\s\-]+/gm,         // Lines starting with years
-            ];
+            // Just parse achievements from the text, keep the structured title/company/dates
+            const lines = experienceText.split('\n').map(line => line.trim()).filter(line => line);
+            console.log(`Total lines after filtering: ${lines.length}`);
+            if (lines.length > 0) {
+                console.log(`First line: "${lines[0].substring(0, 100)}"`);
+                console.log(`Second line: "${lines[1]?.substring(0, 100) || 'N/A'}"`);
+            }
 
-            // Try to split by lines that start with job titles
-            const lines = experienceText.split('\n');
-            let currentJob = [];
-            const jobs = [];
-
+            // Find job headers (lines with dates)
+            const jobBoundaries = [];
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
+                const line = lines[i];
+                const hasDatePattern = /\d{1,2}\/\d{4}|\d{4}/.test(line);
+                const notBullet = !line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*');
+                const notHeader = !line.toLowerCase().includes('key achievement');
+                const isLong = line.length > 20;
 
-                // Check if this line looks like a new job title
-                const isNewJob = (
-                    (line.includes(' at ') || line.includes(' - ')) &&
-                    !line.toLowerCase().includes('achievement') &&
-                    !line.toLowerCase().includes('responsibility') &&
-                    !line.startsWith('•') &&
-                    !line.startsWith('-') &&
-                    line.length > 10 &&
-                    line.length < 100
-                );
+                if (i < 5) {
+                    console.log(`Line ${i} (len=${line.length}): date=${hasDatePattern} bullet=${!notBullet} header=${!notHeader} => ${hasDatePattern && notBullet && notHeader && isLong ? 'MATCH' : 'skip'}`);
+                }
 
-                if (isNewJob && currentJob.length > 0) {
-                    // Save previous job
-                    jobs.push(currentJob.join('\n'));
-                    currentJob = [line];
-                } else {
-                    currentJob.push(line);
+                if (hasDatePattern && notBullet && notHeader && line.length > 20) {
+                    jobBoundaries.push(i);
                 }
             }
 
-            // Add the last job
-            if (currentJob.length > 0) {
-                jobs.push(currentJob.join('\n'));
+            console.log(`Found ${jobBoundaries.length} job sections in text at lines:`, jobBoundaries);
+
+            // If we found NO boundaries, just use original structured data as-is
+            if (jobBoundaries.length === 0) {
+                console.log('No job boundaries found in text - using original structured data as-is');
+                return originalExperience;
             }
 
-            jobSections = jobs;
+            const result = [];
+            for (let i = 0; i < Math.min(jobBoundaries.length, originalExperience.length); i++) {
+                const startIdx = jobBoundaries[i];
+                const endIdx = i < jobBoundaries.length - 1 ? jobBoundaries[i + 1] : lines.length;
+                const jobLines = lines.slice(startIdx, endIdx);
+
+                // Extract achievements from text
+                const achievements = jobLines
+                    .filter(line => line.startsWith('•') || line.startsWith('-') || line.startsWith('*'))
+                    .map(line => line.replace(/^[•\-*]\s*/, ''));
+
+                // Use original structured data for title/company/dates
+                const original = originalExperience[i];
+                result.push({
+                    title: original.title || 'Position',
+                    company: original.company || 'Company',
+                    location: original.location || '',
+                    startDate: original.startDate || '',
+                    endDate: original.endDate || 'Present',
+                    description: original.description || '',
+                    achievements: achievements.length > 0 ? achievements : (original.achievements || [])
+                });
+
+                console.log(`  Job ${i + 1}: ${result[i].title} at ${result[i].company}`);
+            }
+
+            console.log(`Successfully merged ${result.length} experience entries`);
+            return result;
         }
 
-        console.log(`Found ${jobSections.length} job sections`);
+        // Fallback: parse from text only (when no structured data available)
+        console.log('No original structured data, parsing from text only');
+        const lines = experienceText.split('\n').map(line => line.trim()).filter(line => line);
 
-        const experiences = jobSections.map((jobText, index) => {
-            const lines = jobText.split('\n').map(line => line.trim()).filter(line => line);
+        // Detect job boundaries
+        const jobBoundaries = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const hasDatePattern = /\d{1,2}\/\d{4}|\d{4}/.test(line);
+            const notBullet = !line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*');
+            const notHeader = !line.toLowerCase().includes('key achievement');
+            const isLongEnough = line.length > 20;
 
-            if (lines.length === 0) return null;
-
-            console.log(`Processing job ${index + 1}:`, lines[0]);
-
-            // First line should contain title and company
-            const titleLine = lines[0];
-            let title = 'Position';
-            let company = 'Company';
-            let location = '';
-            let startDate = '';
-            let endDate = '';
-            let description = '';
-            let achievements = [];
-
-            // Parse title and company from first line
-            if (titleLine.includes(' at ')) {
-                const parts = titleLine.split(' at ');
-                title = parts[0].trim();
-                company = parts.slice(1).join(' at ').trim();
-            } else if (titleLine.includes(' - ')) {
-                const parts = titleLine.split(' - ');
-                title = parts[0].trim();
-                company = parts.slice(1).join(' - ').trim();
-            } else {
-                // If no clear separator, use the whole line as title
-                title = titleLine;
+            if (hasDatePattern && notBullet && notHeader && isLongEnough) {
+                jobBoundaries.push(i);
             }
+        }
 
-            // Process remaining lines
-            let descriptionLines = [];
+        console.log(`Found ${jobBoundaries.length} job boundaries`);
 
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i];
+        const experiences = [];
+        for (let i = 0; i < jobBoundaries.length; i++) {
+            const startIdx = jobBoundaries[i];
+            const endIdx = i < jobBoundaries.length - 1 ? jobBoundaries[i + 1] : lines.length;
+            const jobLines = lines.slice(startIdx, endIdx);
 
-                // Check if line contains dates
-                if (line.match(/\d{4}/) && (line.includes('-') || line.includes('to') || line.includes('Present'))) {
-                    // Parse dates
-                    const dateMatch = line.match(/(\d{4}(?:-\d{2})?)\s*[-–to]\s*(\d{4}(?:-\d{2})?|Present)/i);
-                    if (dateMatch) {
-                        startDate = dateMatch[1];
-                        endDate = dateMatch[2];
-                        console.log(`Extracted dates: ${startDate} - ${endDate}`);
+            // Parse header
+            const headerLine = jobLines[0];
+            const dateMatch = headerLine.match(/(\d{1,2}\/\d{4})\s*[-–]\s*((?:\d{1,2}\/\d{4})|Present)/i);
+            const startDate = dateMatch ? dateMatch[1] : '';
+            const endDate = dateMatch ? dateMatch[2] : 'Present';
+
+            // Extract title and company from header (everything before dates)
+            let titleCompanyPart = dateMatch ? headerLine.substring(0, dateMatch.index).trim() : headerLine;
+
+            // Look for company names in common list or capitalize patterns
+            const words = titleCompanyPart.split(' ');
+            let title = titleCompanyPart;
+            let company = 'Company';
+
+            // Simple heuristic: if line has "at", split there
+            if (titleCompanyPart.includes(' at ')) {
+                [title, company] = titleCompanyPart.split(' at ').map(s => s.trim());
+            } else {
+                // Find first capitalized word after position keywords as company start
+                const jobKeywords = ['Lead', 'Manager', 'Director', 'Developer', 'Engineer', 'Analyst', 'Specialist', 'Consultant'];
+                let companyStartIdx = -1;
+                for (let j = 0; j < words.length; j++) {
+                    if (jobKeywords.includes(words[j]) && j + 1 < words.length) {
+                        companyStartIdx = j + 1;
+                        break;
                     }
                 }
-                // Check if line looks like location
-                else if (line.includes(',') && line.length < 50 && !line.includes('.')) {
-                    location = line;
-                }
-                // Check if line is an achievement (starts with bullet or dash)
-                else if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
-                    achievements.push(line.replace(/^[•\-*]\s*/, ''));
-                }
-                // Otherwise, it's part of the description
-                else {
-                    descriptionLines.push(line);
+                if (companyStartIdx > 0) {
+                    title = words.slice(0, companyStartIdx).join(' ');
+                    company = words.slice(companyStartIdx).join(' ');
                 }
             }
 
-            description = descriptionLines.join(' ').trim();
+            // Extract achievements
+            const achievements = jobLines
+                .slice(1)
+                .filter(line => line.startsWith('•') || line.startsWith('-') || line.startsWith('*'))
+                .map(line => line.replace(/^[•\-*]\s*/, ''));
 
-            // If no description from lines, use a default
-            if (!description && achievements.length > 0) {
-                description = achievements[0];
-                achievements = achievements.slice(1);
-            }
-
-            const experience = {
-                title: title,
-                company: company,
-                location: location,
-                startDate: startDate,
-                endDate: endDate || 'Present',
-                description: description || `Worked as ${title} at ${company}`,
-                achievements: achievements
-            };
-
-            console.log(`Created experience:`, {
-                title: experience.title,
-                company: experience.company,
-                dates: `${experience.startDate} - ${experience.endDate}`
+            experiences.push({
+                title,
+                company,
+                location: '',
+                startDate,
+                endDate,
+                description: '',
+                achievements
             });
+        }
 
-            return experience;
-        }).filter(exp => exp !== null);
-
-        console.log(`Successfully converted ${experiences.length} experience entries`);
         return experiences;
     }
 
@@ -491,11 +501,18 @@ const cvData = ${JSON.stringify(finalCvData, null, 2)};
                 return;
             }
 
-            // Parse start date - handle both YYYY and YYYY-MM formats
+            // Parse start date - handle multiple formats:
+            // YYYY-MM, YYYY, MM/YYYY, M/YYYY
             let startDate;
-            if (exp.startDate.includes('-')) {
+            if (exp.startDate.includes('/')) {
+                // MM/YYYY or M/YYYY format
+                const [month, year] = exp.startDate.split('/');
+                startDate = new Date(`${year}-${month.padStart(2, '0')}-01`);
+            } else if (exp.startDate.includes('-')) {
+                // YYYY-MM format
                 startDate = new Date(exp.startDate + '-01');
             } else if (exp.startDate.length === 4) {
+                // YYYY format
                 startDate = new Date(exp.startDate + '-01-01');
             } else {
                 console.warn(`Invalid start date format: ${exp.startDate}`);
@@ -507,9 +524,15 @@ const cvData = ${JSON.stringify(finalCvData, null, 2)};
             if (exp.endDate && exp.endDate.toLowerCase() === 'present') {
                 endDate = new Date();
             } else if (exp.endDate) {
-                if (exp.endDate.includes('-')) {
+                if (exp.endDate.includes('/')) {
+                    // MM/YYYY or M/YYYY format
+                    const [month, year] = exp.endDate.split('/');
+                    endDate = new Date(`${year}-${month.padStart(2, '0')}-01`);
+                } else if (exp.endDate.includes('-')) {
+                    // YYYY-MM format
                     endDate = new Date(exp.endDate + '-01');
                 } else if (exp.endDate.length === 4) {
+                    // YYYY format
                     endDate = new Date(exp.endDate + '-01-01');
                 } else {
                     console.warn(`Invalid end date format: ${exp.endDate}`);
