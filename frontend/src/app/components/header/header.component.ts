@@ -8,9 +8,9 @@ import { AuthService, User } from '../../services/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <header class="glass sticky top-0 z-50 backdrop-blur-md" style="background: rgba(10, 14, 39, 0.8); border-bottom: 1px solid rgba(167, 139, 250, 0.2);">
+    <header class="glass sticky top-0 z-50 backdrop-blur-md" style="background: rgba(10, 14, 39, 0.8); border-bottom: 1px solid rgba(167, 139, 250, 0.2); overflow: visible;">
       <nav class="container h-full">
-        <div class="flex justify-between items-center h-full px-4 py-4">
+        <div class="flex justify-between items-center h-full px-4 py-4" style="overflow: visible;">
           <!-- Logo -->
           <div class="flex items-center space-x-3 flex-1 min-w-0">
             <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-12 md:h-16 flex-shrink-0"
@@ -78,8 +78,8 @@ import { AuthService, User } from '../../services/auth.service';
 
               <!-- User Dropdown Menu -->
               <div *ngIf="showUserMenu"
-                   class="absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden backdrop-blur-md"
-                   style="background: rgba(26, 31, 58, 0.95); border: 1px solid rgba(167, 139, 250, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);">
+                   class="absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl overflow-hidden backdrop-blur-md"
+                   style="background: rgba(26, 31, 58, 0.95); border: 1px solid rgba(167, 139, 250, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); z-index: 9999;">
                 <div class="py-2">
                   <button (click)="logout(); closeUserMenu()"
                           class="w-full text-left px-4 py-3 text-sm text-red-400

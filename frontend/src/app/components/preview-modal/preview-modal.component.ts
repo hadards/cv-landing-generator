@@ -16,10 +16,10 @@ import { environment } from '../../../environments/environment';
     <div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black bg-opacity-50">
       
       <!-- Modal Content -->
-      <div class="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-hidden">
-        
+      <div class="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] flex flex-col">
+
         <!-- Header -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 border-b border-gray-200 gap-3">
+        <div class="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 border-b border-gray-200 gap-3 flex-shrink-0">
           <div class="flex items-center justify-between md:justify-start">
             <h3 class="text-base md:text-lg font-semibold text-gray-900">Website Preview</h3>
             <!-- Close button for mobile -->
@@ -76,7 +76,7 @@ import { environment } from '../../../environments/environment';
         </div>
         
         <!-- Preview Area -->
-        <div class="p-4 bg-gray-50">
+        <div class="p-4 bg-gray-50 overflow-y-auto flex-1">
           
           <!-- Loading State -->
           <div *ngIf="isLoading" class="flex items-center justify-center h-96">
@@ -114,7 +114,7 @@ import { environment } from '../../../environments/environment';
         </div>
         
         <!-- Footer -->
-        <div class="px-3 py-3 md:px-4 md:py-3 bg-gray-50 border-t border-gray-200">
+        <div class="px-3 py-3 md:px-4 md:py-3 bg-gray-50 border-t border-gray-200 flex-shrink-0">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <p class="text-xs md:text-sm text-gray-600 text-center md:text-left">Your landing page is ready to download and deploy</p>
             <div class="flex flex-col sm:flex-row gap-2 md:gap-3">

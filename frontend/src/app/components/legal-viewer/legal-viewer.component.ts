@@ -8,11 +8,11 @@ import { LegalService, LegalDocument } from '../../services/legal.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div class="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden">
-        
+    <div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black bg-opacity-50">
+      <div class="relative w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] bg-white rounded-lg shadow-xl flex flex-col my-4 md:my-8">
+
         <!-- Header -->
-        <div class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+        <div class="flex items-center justify-between p-3 md:p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
           <div>
             <h2 class="text-lg font-semibold text-gray-900">{{ document?.title || 'Legal Document' }}</h2>
             <p class="text-xs text-gray-600" *ngIf="document?.lastUpdated">
@@ -36,7 +36,7 @@ import { LegalService, LegalDocument } from '../../services/legal.service';
         </div>
         
         <!-- Content -->
-        <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        <div class="p-4 md:p-6 overflow-y-auto flex-1">
           
           <!-- Loading State -->
           <div *ngIf="isLoading" class="flex items-center justify-center py-12">
@@ -68,14 +68,14 @@ import { LegalService, LegalDocument } from '../../services/legal.service';
         </div>
         
         <!-- Footer -->
-        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-          <div class="flex items-center justify-between">
-            <div class="text-xs text-gray-500">
+        <div class="px-4 py-3 md:px-6 md:py-4 bg-gray-50 border-t border-gray-200 flex-shrink-0">
+          <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 md:gap-0">
+            <div class="text-xs text-gray-500 text-center md:text-left hidden md:block">
               This is an experimental service in development with limited guarantees.
             </div>
             <button
               (click)="close()"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              class="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
               Close
             </button>
           </div>
