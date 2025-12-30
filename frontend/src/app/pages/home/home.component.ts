@@ -69,8 +69,8 @@ import { RouterModule, Router } from '@angular/router';
           </div>
 
           <!-- CTA Button -->
-          <div class="flex justify-center mt-16">
-            <button (click)="navigateToUpload()" class="btn-primary text-xl px-12 py-6 inline-flex items-center justify-center cursor-pointer">
+          <div class="flex justify-center mt-12 md:mt-16 mb-8">
+            <button (click)="navigateToUpload()" class="btn-primary text-base md:text-xl px-8 md:px-12 py-4 md:py-6 inline-flex items-center justify-center cursor-pointer">
               <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>

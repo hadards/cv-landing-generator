@@ -10,14 +10,14 @@ import { AuthService, User } from '../../services/auth.service';
   template: `
     <header class="glass sticky top-0 z-50 backdrop-blur-md" style="background: rgba(10, 14, 39, 0.8); border-bottom: 1px solid rgba(167, 139, 250, 0.2); overflow: visible;">
       <nav class="container h-full">
-        <div class="flex justify-between items-center h-full px-4 py-4" style="overflow: visible;">
+        <div class="flex justify-between items-center h-full px-3 md:px-4 py-2 md:py-4" style="overflow: visible;">
           <!-- Logo -->
-          <div class="flex items-center space-x-3 flex-1 min-w-0">
-            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-12 md:h-16 flex-shrink-0"
+          <div class="flex items-center space-x-2 md:space-x-3 flex-1 min-w-0">
+            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-10 md:h-16 flex-shrink-0"
                  style="width: auto;">
             <div class="min-w-0 flex-1">
-              <h1 class="text-xl md:text-2xl font-black text-gradient">CV Landing Generator</h1>
-              <p class="text-xs md:text-sm text-white/60">Create • Share • Shine</p>
+              <h1 class="text-base md:text-2xl font-black text-gradient">CV Landing Generator</h1>
+              <p class="text-xs md:text-sm text-white/60 hidden sm:block">Create • Share • Shine</p>
             </div>
           </div>
 

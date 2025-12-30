@@ -176,13 +176,13 @@
             </p>
           </div>
           
-          <div class="space-x-4">
-            <input type="file" 
+          <div class="flex justify-center px-4">
+            <input type="file"
                    id="profile-file-input"
                    class="hidden"
                    accept=".jpg,.jpeg,.png"
                    (change)="onProfileSelected($event)">
-            <label for="profile-file-input" class="btn-primary cursor-pointer inline-flex items-center">
+            <label for="profile-file-input" class="btn-primary cursor-pointer inline-flex items-center justify-center w-full max-w-xs">
               <span class="mr-2">+</span>
               Choose Photo
             </label>

@@ -10,16 +10,16 @@ import { CVWizardComponent } from '../../components/cv-wizard/cv-wizard.componen
   standalone: true,
   imports: [CommonModule, CVWizardComponent],
   template: `
-    <div class="relative min-h-screen overflow-x-hidden py-4 md:py-8 w-full max-w-full" style="background: #0a0e27;">
+    <div class="relative min-h-[calc(100vh-4rem)] overflow-x-hidden py-4 md:py-8 w-full max-w-full flex items-center" style="background: #0a0e27;">
       <!-- 3D Floating Orbs (hidden on mobile) -->
       <div class="floating-orb orb-purple hidden md:block" style="width: 350px; height: 350px; top: 15%; left: 5%; animation-delay: 0s;"></div>
       <div class="floating-orb orb-cyan hidden md:block" style="width: 300px; height: 300px; bottom: 15%; right: 5%; animation-delay: 3s;"></div>
       <div class="floating-orb orb-pink hidden md:block" style="width: 250px; height: 250px; top: 50%; left: 50%; animation-delay: 6s;"></div>
 
-      <div class="container mx-auto px-4 md:px-6 relative z-10">
+      <div class="container mx-auto px-4 md:px-6 relative z-10 w-full">
         <!-- Authentication Check -->
         <div *ngIf="!isAuthenticated" class="max-w-sm md:max-w-md mx-auto">
-          <div class="glass rounded-2xl p-6 md:p-8 text-center shadow-2xl animate-fade-in" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
+          <div class="glass rounded-2xl p-5 md:p-8 text-center shadow-2xl animate-fade-in" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
             <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center"
                  style="box-shadow: 0 0 40px rgba(167, 139, 250, 0.5);">
               <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
