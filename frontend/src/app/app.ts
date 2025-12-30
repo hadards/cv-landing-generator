@@ -5,6 +5,7 @@ import { RouterOutlet } from '@angular/router';
 import { HeaderComponent } from './components/header/header.component';
 import { FooterComponent } from './components/footer/footer.component';
 import { TermsAcceptanceComponent } from './components/terms-acceptance/terms-acceptance.component';
+import { ToastComponent } from './components/toast/toast.component';
 import { LegalService } from './services/legal.service';
 import { AuthService } from './services/auth.service';
 import { environment } from '../environments/environment';
@@ -12,8 +13,11 @@ import { environment } from '../environments/environment';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, HeaderComponent, FooterComponent, TermsAcceptanceComponent],
+  imports: [CommonModule, RouterOutlet, HeaderComponent, FooterComponent, TermsAcceptanceComponent, ToastComponent],
   template: `
+    <!-- Toast Notifications (Global) -->
+    <app-toast></app-toast>
+
     <!-- Terms Acceptance Modal (shown if not accepted) -->
     <app-terms-acceptance
       *ngIf="showTermsModal"

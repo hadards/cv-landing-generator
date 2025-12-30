@@ -9,6 +9,7 @@ import { PreviewModalComponent } from '../preview-modal/preview-modal.component'
 import { GitHubPublishButtonComponent, PublishSuccess } from '../github-publish-button/github-publish-button.component';
 import { Subscription } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { ToastService } from '../../services/toast.service';
 
 interface WizardStep {
     id: number;
@@ -26,6 +27,12 @@ interface CVSection {
     placeholder: string;
     rows: number;
     icon: string;
+}
+
+interface Banner {
+    type: 'success' | 'error' | 'warning' | 'info';
+    message: string;
+    dismissable: boolean;
 }
 
 @Component({
@@ -50,6 +57,9 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     generationId: string | null = null;
     isDownloading = false;
     generationResult: any = null;
+
+    // Banner system
+    currentBanner: Banner | null = null;
 
     wizardSteps: WizardStep[] = [
         {
@@ -166,7 +176,8 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     constructor(
         private cvProcessingService: CVProcessingService,
         private landingPageService: LandingPageService,
-        private authService: AuthService
+        private authService: AuthService,
+        private toastService: ToastService
     ) { }
 
     ngOnInit() {
@@ -221,12 +232,12 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         const maxSize = 10 * 1024 * 1024; // 10MB
 
         if (!allowedTypes.includes(file.type)) {
-            alert('Please select a PDF, DOC, or DOCX file');
+            this.toastService.error('Please select a PDF, DOC, or DOCX file');
             return false;
         }
 
         if (file.size > maxSize) {
-            alert('File size must be less than 10MB');
+            this.toastService.error('File size must be less than 10MB');
             return false;
         }
 
@@ -337,7 +348,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
                         this.isProcessing = false;
                         this.stopProcessingTimer();
                         this.markPhasesAsError();
-                        alert('CV processing failed: ' + (jobStatus.error || 'Unknown error'));
+                        this.toastService.error('CV processing failed: ' + (jobStatus.error || 'Unknown error'));
                     }
                 },
                 error: (error) => {
@@ -345,7 +356,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
                     this.stopProcessingTimer();
                     this.markPhasesAsError();
                     console.error('Job monitoring error:', error);
-                    alert('Failed to process CV: ' + error.message);
+                    this.toastService.error('Failed to process CV: ' + error.message);
                 }
             });
 
@@ -355,7 +366,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
             this.markPhasesAsError();
             console.error('CV processing error:', error);
             const errorMessage = (error as any)?.message || 'Unknown error occurred';
-            alert('Failed to start CV processing: ' + errorMessage);
+            this.toastService.error('Failed to start CV processing: ' + errorMessage);
         }
     }
 
@@ -490,12 +501,12 @@ export class CVWizardComponent implements OnInit, OnDestroy {
     async generateWebsite() {
         // Validate required fields before generating
         if (!this.cvData?.personalInfo?.name || this.cvData.personalInfo.name.trim() === '') {
-            alert('Please enter your name before generating the website.');
+            // Validation already shown via inline warning banner
             return;
         }
 
         if (!this.cvData?.personalInfo?.email || this.cvData.personalInfo.email.trim() === '') {
-            alert('Please enter your email before generating the website.');
+            // Validation already shown via inline warning banner
             return;
         }
 
@@ -523,13 +534,13 @@ export class CVWizardComponent implements OnInit, OnDestroy {
                 error: (error) => {
                     this.isGeneratingWebsite = false;
                     console.error('Website generation failed:', error);
-                    alert('Failed to generate website: ' + (error.error?.message || error.message));
+                    this.toastService.error('Failed to generate website: ' + (error.error?.message || error.message));
                 }
             });
 
         } catch (error) {
             this.isGeneratingWebsite = false;
-            alert('Failed to generate website: ' + (error as any).message);
+            this.toastService.error('Failed to generate website: ' + (error as any).message);
         }
     }
 
@@ -539,7 +550,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
             console.log('Opening preview for generation ID:', this.generationId);
             this.showPreviewModal = true;
         } else {
-            alert('No generation ID available for preview');
+            this.toastService.error('No generation ID available for preview');
         }
     }
 
@@ -556,7 +567,7 @@ export class CVWizardComponent implements OnInit, OnDestroy {
         try {
             const token = this.authService.getToken();
             if (!token) {
-                alert('Authentication required for download');
+                this.showBanner('error', 'Authentication required for download', true);
                 this.isDownloading = false;
                 return;
             }
@@ -572,9 +583,10 @@ export class CVWizardComponent implements OnInit, OnDestroy {
             document.body.removeChild(link);
 
             console.log('Download initiated for generation:', this.generationId);
+            this.toastService.success('Download started successfully');
         } catch (error) {
             console.error('Download failed:', error);
-            alert('Download failed. Please try again.');
+            this.toastService.error('Download failed. Please try again.');
         } finally {
             // Reset downloading state after a short delay
             setTimeout(() => {
@@ -730,6 +742,20 @@ export class CVWizardComponent implements OnInit, OnDestroy {
 
     delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Banner helper methods
+    showBanner(type: Banner['type'], message: string, dismissable: boolean = true) {
+        this.currentBanner = { type, message, dismissable };
+    }
+
+    dismissBanner() {
+        this.currentBanner = null;
+    }
+
+    clearBannerOnStepChange() {
+        // Auto-clear banner when user navigates
+        this.currentBanner = null;
     }
 
     // GitHub publish event handlers

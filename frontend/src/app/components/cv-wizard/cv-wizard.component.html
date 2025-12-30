@@ -77,9 +77,53 @@
     </div>
   </div>
 
+  <!-- Inline Banner (if active) -->
+  <div *ngIf="currentBanner" class="mb-6 max-w-2xl mx-auto">
+    <div class="p-4 rounded-xl flex items-start gap-3 border"
+         [ngClass]="{
+           'bg-green-500/10 border-green-500/30': currentBanner.type === 'success',
+           'bg-red-500/10 border-red-500/30': currentBanner.type === 'error',
+           'bg-yellow-500/10 border-yellow-500/30': currentBanner.type === 'warning',
+           'bg-blue-500/10 border-blue-500/30': currentBanner.type === 'info'
+         }">
+      <div class="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center font-bold text-xs"
+           [ngClass]="{
+             'bg-green-500/20 text-green-400': currentBanner.type === 'success',
+             'bg-red-500/20 text-red-400': currentBanner.type === 'error',
+             'bg-yellow-500/20 text-yellow-400': currentBanner.type === 'warning',
+             'bg-blue-500/20 text-blue-400': currentBanner.type === 'info'
+           }">
+        <span *ngIf="currentBanner.type === 'success'">✓</span>
+        <span *ngIf="currentBanner.type === 'error'">✗</span>
+        <span *ngIf="currentBanner.type === 'warning'">!</span>
+        <span *ngIf="currentBanner.type === 'info'">i</span>
+      </div>
+      <p class="flex-1 text-sm"
+         [ngClass]="{
+           'text-green-400': currentBanner.type === 'success',
+           'text-red-400': currentBanner.type === 'error',
+           'text-yellow-400': currentBanner.type === 'warning',
+           'text-blue-400': currentBanner.type === 'info'
+         }">
+        {{ currentBanner.message }}
+      </p>
+      <button *ngIf="currentBanner.dismissable"
+              (click)="dismissBanner()"
+              class="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
+              [ngClass]="{
+                'text-green-400': currentBanner.type === 'success',
+                'text-red-400': currentBanner.type === 'error',
+                'text-yellow-400': currentBanner.type === 'warning',
+                'text-blue-400': currentBanner.type === 'info'
+              }">
+        ×
+      </button>
+    </div>
+  </div>
+
   <!-- Step Content -->
   <div class="card max-w-4xl mx-auto scale-in p-4 md:p-6">
-    
+
     <!-- Step 1: Upload CV -->
     <div *ngIf="currentStep === 1" class="text-center">
       <div class="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 bg-gradient-to-br from-purple-500 to-purple-700" style="box-shadow: 0 0 40px rgba(167, 139, 250, 0.5);">
