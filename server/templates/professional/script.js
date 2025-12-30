@@ -356,8 +356,32 @@ document.addEventListener('DOMContentLoaded', function () {
     const contactPhoneBtn = document.getElementById('contact-phone-btn');
     const footerName = document.getElementById('footer-name');
 
-    if (contactEmailBtn) contactEmailBtn.href = `mailto:${cvData.personalInfo.email}`;
-    if (contactPhoneBtn) contactPhoneBtn.href = `tel:${cvData.personalInfo.phone}`;
+    if (contactEmailBtn) {
+        contactEmailBtn.href = `mailto:${cvData.personalInfo.email}`;
+        // Add click handler to copy email if mailto fails
+        contactEmailBtn.addEventListener('click', function(e) {
+            // Let the mailto: link try first, but also copy to clipboard as fallback
+            setTimeout(() => {
+                navigator.clipboard.writeText(cvData.personalInfo.email).then(() => {
+                    console.log('Email copied to clipboard:', cvData.personalInfo.email);
+                }).catch(err => console.log('Clipboard copy failed:', err));
+            }, 100);
+        });
+    }
+
+    if (contactPhoneBtn) {
+        contactPhoneBtn.href = `tel:${cvData.personalInfo.phone}`;
+        // Add click handler to copy phone if tel fails
+        contactPhoneBtn.addEventListener('click', function(e) {
+            // Let the tel: link try first, but also copy to clipboard as fallback
+            setTimeout(() => {
+                navigator.clipboard.writeText(cvData.personalInfo.phone).then(() => {
+                    console.log('Phone copied to clipboard:', cvData.personalInfo.phone);
+                }).catch(err => console.log('Clipboard copy failed:', err));
+            }, 100);
+        });
+    }
+
     if (footerName) footerName.textContent = cvData.personalInfo.name;
 
     // Add contact button functionality
