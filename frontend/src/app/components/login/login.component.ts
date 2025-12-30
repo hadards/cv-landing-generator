@@ -23,13 +23,13 @@ declare global {
 
       <div class="max-w-md w-full relative z-10">
         <!-- Header -->
-        <div class="text-center mb-8 animate-fade-in">
-          <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center"
+        <div class="text-center mb-6 md:mb-8 animate-fade-in">
+          <div class="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 md:mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center"
                style="box-shadow: 0 0 40px rgba(167, 139, 250, 0.5);">
-            <span class="text-white font-bold text-2xl">CV</span>
+            <span class="text-white font-bold text-xl md:text-2xl">CV</span>
           </div>
-          <h1 class="text-4xl font-bold text-gradient mb-3">Welcome Back</h1>
-          <p class="text-white/70 text-lg">
+          <h1 class="text-2xl md:text-4xl font-bold text-gradient mb-2 md:mb-3 px-4">Welcome Back</h1>
+          <p class="text-white/70 text-sm md:text-lg px-4">
             Sign in to create and manage your professional landing pages
           </p>
         </div>
@@ -160,12 +160,14 @@ export class LoginComponent implements OnInit {
           callback: this.handleGoogleCallback.bind(this)
         });
 
+        const buttonWidth = window.innerWidth < 768 ? Math.min(window.innerWidth - 80, 350) : 400;
+
         window.google.accounts.id.renderButton(
           document.getElementById('google-signin-button'),
           {
             theme: 'outline',
             size: 'large',
-            width: 400,
+            width: buttonWidth,
             text: 'continue_with'
           }
         );
