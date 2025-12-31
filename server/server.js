@@ -228,10 +228,10 @@ const nodeEnv = (process.env.NODE_ENV || '').trim();
 if (nodeEnv === 'production') {
     const frontendPath = path.join(__dirname, '../frontend/dist/frontend/browser');
 
-    console.log('=================================');
-    console.log('PRODUCTION MODE: Static file serving enabled');
-    console.log('Frontend path:', frontendPath);
-    console.log('=================================');
+    console.info('=================================');
+    console.info('PRODUCTION MODE: Static file serving enabled');
+    console.info('Frontend path:', frontendPath);
+    console.info('=================================');
 
     // Serve static files
     app.use(express.static(frontendPath));
@@ -241,10 +241,10 @@ if (nodeEnv === 'production') {
         res.sendFile(path.join(frontendPath, 'index.html'));
     });
 } else {
-    console.log('=================================');
-    console.log('DEVELOPMENT MODE: Static file serving DISABLED');
-    console.log('NODE_ENV:', JSON.stringify(process.env.NODE_ENV));
-    console.log('=================================');
+    console.info('=================================');
+    console.info('DEVELOPMENT MODE: Static file serving DISABLED');
+    console.info('NODE_ENV:', JSON.stringify(process.env.NODE_ENV));
+    console.info('=================================');
 }
 
 // Error monitoring middleware
@@ -314,7 +314,7 @@ const checkMemoryPressure = () => {
         if (global.gc) {
             global.gc();
             const newUsage = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-            console.log(`Garbage collection completed: ${newUsage}MB (freed: ${heapUsedMB - newUsage}MB)`);
+            console.info(`Garbage collection completed: ${newUsage}MB (freed: ${heapUsedMB - newUsage}MB)`);
         }
 
         // Trigger emergency file cleanup
@@ -327,7 +327,7 @@ const checkMemoryPressure = () => {
         }, 1000); // Delay to avoid blocking current request
     } else if (heapUsedMB < memoryPressureThreshold * 0.8 && memoryPressureActive) {
         memoryPressureActive = false;
-        console.log(`Memory pressure relieved: ${heapUsedMB}MB`);
+        console.info(`Memory pressure relieved: ${heapUsedMB}MB`);
     }
 
     return memoryPressureActive;
@@ -351,7 +351,7 @@ setInterval(checkMemoryPressure, THIRTY_SECONDS_MS);
 // Initialize authentication session storage tables
 const sessionStore = require('./database/session-store');
 sessionStore.initializeSessionTables().then(() => {
-    console.log('Authentication session storage initialized');
+    console.info('Authentication session storage initialized');
     // Schedule daily cleanup of expired authentication sessions
     setInterval(() => {
         sessionStore.cleanupExpiredData().catch(err => {
@@ -374,76 +374,76 @@ setInterval(() => {
 
 // Start server
 const server = app.listen(PORT, async () => {
-    console.log(`=================================`);
-    console.log(`CV Landing Generator API Server`);
-    console.log(`=================================`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Server: http://localhost:${PORT}`);
-    console.log(`Health: http://localhost:${PORT}/api/health`);
-    console.log(`=================================`);
-    console.log(`Configuration Status:`);
-    console.log(`Gemini API: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Missing'}`);
-    console.log(`JWT Secret: ${process.env.JWT_SECRET ? 'Configured' : 'Missing'}`);
-    console.log(`Database: ${process.env.DATABASE_URL ? 'Configured' : 'Missing'}`);
-    console.log(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? 'Configured' : 'Missing'}`);
-    console.log(`CORS Origins: ${allowedOrigins.join(', ')}`);
+    console.info(`=================================`);
+    console.info(`CV Landing Generator API Server`);
+    console.info(`=================================`);
+    console.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.info(`Server: http://localhost:${PORT}`);
+    console.info(`Health: http://localhost:${PORT}/api/health`);
+    console.info(`=================================`);
+    console.info(`Configuration Status:`);
+    console.info(`Gemini API: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Missing'}`);
+    console.info(`JWT Secret: ${process.env.JWT_SECRET ? 'Configured' : 'Missing'}`);
+    console.info(`Database: ${process.env.DATABASE_URL ? 'Configured' : 'Missing'}`);
+    console.info(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? 'Configured' : 'Missing'}`);
+    console.info(`CORS Origins: ${allowedOrigins.join(', ')}`);
     const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || DEFAULT_RATE_LIMIT_MAX_REQUESTS;
     const rateLimitWindow = (parseInt(process.env.RATE_LIMIT_WINDOW_MS) || RATE_LIMIT_WINDOW_MS) / 1000 / 60;
-    console.log(`Rate Limiting: ${rateLimitMax} requests per ${rateLimitWindow} minutes`);
-    console.log(`=================================`);
+    console.info(`Rate Limiting: ${rateLimitMax} requests per ${rateLimitWindow} minutes`);
+    console.info(`=================================`);
     
     // Test database connection
     const dbConnected = await testDatabaseConnection();
     if (!dbConnected) {
         console.warn('Database not available - run schema.sql in Supabase to set up tables');
     } else {
-        console.log('Database connection verified');
+        console.info('Database connection verified');
     }
-    
+
     // Start file cleanup manager
     try {
         await fileCleanupManager.start();
-        console.log('File cleanup manager started');
+        console.info('File cleanup manager started');
     } catch (error) {
         console.error('Failed to start file cleanup manager:', error);
     }
-    
-    console.log('=================================');
-    console.log('Server startup completed');
-    console.log('=================================');
+
+    console.info('=================================');
+    console.info('Server startup completed');
+    console.info('=================================');
 });
 
 // Graceful shutdown handlers
 process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    
+    console.info('SIGTERM received, shutting down gracefully');
+
     // Stop file cleanup manager
     try {
         await fileCleanupManager.stop();
-        console.log('File cleanup manager stopped');
+        console.info('File cleanup manager stopped');
     } catch (error) {
         console.error('Error stopping file cleanup manager:', error);
     }
-    
+
     server.close(() => {
-        console.log('Process terminated');
+        console.info('Process terminated');
         process.exit(0);
     });
 });
 
 process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully');
-    
+    console.info('SIGINT received, shutting down gracefully');
+
     // Stop file cleanup manager
     try {
         await fileCleanupManager.stop();
-        console.log('File cleanup manager stopped');
+        console.info('File cleanup manager stopped');
     } catch (error) {
         console.error('Error stopping file cleanup manager:', error);
     }
-    
+
     server.close(() => {
-        console.log('Process terminated');
+        console.info('Process terminated');
         process.exit(0);
     });
 });
