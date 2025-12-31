@@ -2,11 +2,12 @@ import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService, User } from '../../services/auth.service';
+import { DeleteAccountModalComponent } from '../delete-account-modal/delete-account-modal.component';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, DeleteAccountModalComponent],
   template: `
     <header class="glass sticky top-0 z-50 backdrop-blur-md" style="background: rgba(10, 14, 39, 0.8); border-bottom: 1px solid rgba(167, 139, 250, 0.2); overflow: visible;">
       <nav class="container h-full">
@@ -81,6 +82,15 @@ import { AuthService, User } from '../../services/auth.service';
                    class="absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl overflow-hidden backdrop-blur-md"
                    style="background: rgba(26, 31, 58, 0.95); border: 1px solid rgba(167, 139, 250, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); z-index: 9999;">
                 <div class="py-2">
+                  <button (click)="openDeleteAccountModal(); closeUserMenu()"
+                          class="w-full text-left px-4 py-3 text-sm text-red-400
+                                 hover:bg-red-500/10 transition-colors flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    <span>Delete Account</span>
+                  </button>
                   <button (click)="logout(); closeUserMenu()"
                           class="w-full text-left px-4 py-3 text-sm text-red-400
                                  hover:bg-red-500/10 transition-colors flex items-center space-x-2">
@@ -147,6 +157,20 @@ import { AuthService, User } from '../../services/auth.service';
                 </div>
               </div>
 
+              <!-- Delete Account Button -->
+              <button (click)="openDeleteAccountModal(); closeMobileMenu()"
+                      class="w-full flex items-center justify-center space-x-2 px-4 py-3 mb-3
+                             text-red-400
+                             bg-red-500/10
+                             border border-red-500/30
+                             rounded-xl hover:bg-red-500/20 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                <span class="font-medium">Delete Account</span>
+              </button>
+
               <!-- Sign Out Button -->
               <button (click)="logout(); closeMobileMenu()"
                       class="w-full flex items-center justify-center space-x-2 px-4 py-3
@@ -185,6 +209,12 @@ import { AuthService, User } from '../../services/auth.service';
         </div>
       </nav>
     </header>
+
+    <!-- Delete Account Modal -->
+    <app-delete-account-modal
+      *ngIf="showDeleteAccountModal"
+      (closeEvent)="closeDeleteAccountModal()">
+    </app-delete-account-modal>
   `,
   styles: [`
     .nav-link {
@@ -236,6 +266,7 @@ export class HeaderComponent implements OnInit {
   user: User | null = null;
   showMobileMenu = false;
   showUserMenu = false;
+  showDeleteAccountModal = false;
 
   constructor(
     private authService: AuthService
@@ -299,6 +330,14 @@ export class HeaderComponent implements OnInit {
 
   closeUserMenu() {
     this.showUserMenu = false;
+  }
+
+  openDeleteAccountModal() {
+    this.showDeleteAccountModal = true;
+  }
+
+  closeDeleteAccountModal() {
+    this.showDeleteAccountModal = false;
   }
 
   logout() {

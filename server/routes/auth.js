@@ -199,15 +199,6 @@ router.get('/export-data', verifyTokenEnhanced, async (req, res) => {
 router.delete('/delete-account', verifyTokenEnhanced, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const { confirmation } = req.body;
-
-        // Require explicit confirmation
-        if (confirmation !== 'DELETE MY ACCOUNT') {
-            return res.status(400).json({
-                error: 'Confirmation required',
-                message: 'Please send confirmation: "DELETE MY ACCOUNT" in the request body'
-            });
-        }
 
         console.log(`Account deletion requested by user: ${userId}`);
 

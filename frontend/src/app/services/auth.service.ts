@@ -92,6 +92,32 @@ export class AuthService {
     });
   }
 
+  deleteAccount(): Observable<any> {
+    return new Observable(observer => {
+      const token = localStorage.getItem(this.tokenKey);
+      const headers = token ? new HttpHeaders({
+        'Authorization': `Bearer ${token}`
+      }) : undefined;
+
+      this.http.delete(`${this.apiUrl}/auth/delete-account`, { headers }).subscribe({
+        next: (response) => {
+          // Clear local storage and user state
+          localStorage.removeItem(this.tokenKey);
+          this.userSubject.next(null);
+          observer.next(response);
+          observer.complete();
+
+          // Redirect to home page
+          window.location.href = '/';
+        },
+        error: (error) => {
+          observer.error(error);
+          observer.complete();
+        }
+      });
+    });
+  }
+
   getCurrentUser(): Observable<any> {
     const token = localStorage.getItem(this.tokenKey);
     
