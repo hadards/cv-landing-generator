@@ -87,22 +87,24 @@ app.use((req, res, next) => {
         return next();
     }
 
-    // Apply strict CSP for API routes only
+    // Apply CSP for API routes, but relaxed for Google OAuth compatibility
     helmet({
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                styleSrc: ["'self'"],
-                scriptSrc: ["'self'"],
-                imgSrc: ["'self'"],
-                connectSrc: ["'self'"],
+                styleSrc: ["'self'", "'unsafe-inline'"],
+                scriptSrc: ["'self'", "https://accounts.google.com", "https://apis.google.com"],
+                imgSrc: ["'self'", "data:", "https:"],
+                connectSrc: ["'self'", "https://accounts.google.com", "https://oauth2.googleapis.com"],
                 fontSrc: ["'self'"],
                 objectSrc: ["'none'"],
-                frameSrc: ["'none'"],
+                frameSrc: ["'self'", "https://accounts.google.com"],
+                formAction: ["'self'"],
             },
         },
         crossOriginEmbedderPolicy: false,
-        crossOriginOpenerPolicy: false  // Disable COOP to allow Google Sign-In and OAuth popups
+        crossOriginOpenerPolicy: false,  // Disable COOP to allow Google Sign-In and OAuth popups
+        crossOriginResourcePolicy: false  // Disable CORP to allow Google OAuth resources
     })(req, res, next);
 });
 
@@ -158,26 +160,40 @@ if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
     }
 }
 
-// Add GitHub OAuth domains for redirects
-const githubDomains = ['https://github.com', 'https://api.github.com'];
+// Add OAuth domains for redirects
+const oauthDomains = [
+    'https://github.com',
+    'https://api.github.com',
+    'https://accounts.google.com',
+    'https://oauth2.googleapis.com'
+];
 
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps, curl, OAuth redirects, same-origin)
-        if (!origin) return callback(null, true);
+        if (!origin) {
+            console.info('[CORS] Request with no origin allowed');
+            return callback(null, true);
+        }
 
         // Allow configured origins
         if (allowedOrigins.indexOf(origin) !== -1) {
+            console.info('[CORS] Allowed origin:', origin);
             callback(null, true);
         }
-        // Allow GitHub OAuth domains
-        else if (githubDomains.some(domain => origin.startsWith(domain))) {
+        // Allow OAuth domains (GitHub and Google)
+        else if (oauthDomains.some(domain => origin.startsWith(domain))) {
+            console.info('[CORS] OAuth domain allowed:', origin);
             callback(null, true);
         } else {
+            console.warn('[CORS] Origin not allowed:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
 // Request monitoring middleware (before routes)
@@ -374,19 +390,30 @@ setInterval(() => {
 
 // Start server
 const server = app.listen(PORT, async () => {
+    const isProduction = nodeEnv === 'production';
+    const serverUrl = isProduction
+        ? (process.env.API_URL || process.env.FRONTEND_URL || `Port ${PORT}`)
+        : `http://localhost:${PORT}`;
+
     console.info(`=================================`);
     console.info(`CV Landing Generator API Server`);
     console.info(`=================================`);
-    console.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.info(`Server: http://localhost:${PORT}`);
-    console.info(`Health: http://localhost:${PORT}/api/health`);
+    console.info(`Environment: ${nodeEnv || 'development'}`);
+    console.info(`Server: ${serverUrl}`);
+    if (!isProduction) {
+        console.info(`Health: http://localhost:${PORT}/api/health`);
+    }
     console.info(`=================================`);
     console.info(`Configuration Status:`);
     console.info(`Gemini API: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Missing'}`);
     console.info(`JWT Secret: ${process.env.JWT_SECRET ? 'Configured' : 'Missing'}`);
     console.info(`Database: ${process.env.DATABASE_URL ? 'Configured' : 'Missing'}`);
     console.info(`GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? 'Configured' : 'Missing'}`);
-    console.info(`CORS Origins: ${allowedOrigins.join(', ')}`);
+    console.info(`Google OAuth: ${process.env.GOOGLE_CLIENT_ID ? 'Configured' : 'Missing'}`);
+    console.info(`CORS Allowed Origins:`);
+    allowedOrigins.forEach(origin => console.info(`  - ${origin}`));
+    console.info(`CORS OAuth Domains:`);
+    oauthDomains.forEach(domain => console.info(`  - ${domain}`));
     const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || DEFAULT_RATE_LIMIT_MAX_REQUESTS;
     const rateLimitWindow = (parseInt(process.env.RATE_LIMIT_WINDOW_MS) || RATE_LIMIT_WINDOW_MS) / 1000 / 60;
     console.info(`Rate Limiting: ${rateLimitMax} requests per ${rateLimitWindow} minutes`);

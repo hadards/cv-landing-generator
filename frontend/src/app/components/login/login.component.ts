@@ -153,24 +153,52 @@ export class LoginComponent implements OnInit {
   }
 
   private initializeGoogleSignIn(clientId: string) {
+    console.log('[Login] Initializing Google Sign-In with client ID:', clientId ? 'present' : 'missing');
+
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max
+
     const checkGoogle = () => {
+      attempts++;
+
       if (typeof window.google !== 'undefined') {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: this.handleGoogleCallback.bind(this)
-        });
+        console.log('[Login] Google API loaded successfully');
 
-        const buttonWidth = window.innerWidth < 768 ? Math.min(window.innerWidth - 80, 350) : 400;
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: this.handleGoogleCallback.bind(this)
+          });
 
-        window.google.accounts.id.renderButton(
-          document.getElementById('google-signin-button'),
-          {
-            theme: 'outline',
-            size: 'large',
-            width: buttonWidth,
-            text: 'continue_with'
+          console.log('[Login] Google Sign-In initialized');
+
+          const buttonWidth = window.innerWidth < 768 ? Math.min(window.innerWidth - 80, 350) : 400;
+
+          const buttonElement = document.getElementById('google-signin-button');
+          if (!buttonElement) {
+            console.error('[Login] Google Sign-In button element not found');
+            this.error = 'Failed to render login button. Please refresh the page.';
+            return;
           }
-        );
+
+          window.google.accounts.id.renderButton(
+            buttonElement,
+            {
+              theme: 'outline',
+              size: 'large',
+              width: buttonWidth,
+              text: 'continue_with'
+            }
+          );
+
+          console.log('[Login] Google Sign-In button rendered');
+        } catch (initError) {
+          console.error('[Login] Error initializing Google Sign-In:', initError);
+          this.error = 'Failed to initialize Google authentication. Please refresh the page.';
+        }
+      } else if (attempts >= maxAttempts) {
+        console.error('[Login] Google API failed to load after', attempts, 'attempts');
+        this.error = 'Google authentication library failed to load. Please check your internet connection and refresh the page.';
       } else {
         setTimeout(checkGoogle, 100);
       }
@@ -179,24 +207,76 @@ export class LoginComponent implements OnInit {
   }
 
   private handleGoogleCallback(response: any) {
-    if (response.credential) {
-      this.loading = true;
-      this.error = null;
+    console.log('[Login] Google callback received');
 
-      this.authService.login(response.credential).subscribe({
-        next: (loginResponse) => {
-          this.loading = false;
-          if (loginResponse.success) {
-            this.router.navigate(['/dashboard']);
-          } else {
-            this.error = 'Login failed. Please try again.';
-          }
-        },
-        error: (error) => {
-          this.loading = false;
-          this.error = error.error?.error || error.error?.message || 'An error occurred during login.';
-        }
-      });
+    if (!response) {
+      console.error('[Login] No response received from Google');
+      this.error = 'Google authentication failed. Please try again.';
+      return;
     }
+
+    if (!response.credential) {
+      console.error('[Login] No credential in Google response');
+      this.error = 'No authentication credential received. Please try again.';
+      return;
+    }
+
+    console.log('[Login] Credential received, sending to server...');
+    this.loading = true;
+    this.error = null;
+
+    this.authService.login(response.credential).subscribe({
+      next: (loginResponse) => {
+        console.log('[Login] Server response received:', loginResponse?.success ? 'success' : 'failed');
+
+        if (loginResponse.success) {
+          console.log('[Login] Login successful, navigating to dashboard...');
+
+          // Use timeout to ensure token is stored before navigation
+          setTimeout(() => {
+            this.router.navigate(['/dashboard']).then(
+              (navigated) => {
+                console.log('[Login] Navigation result:', navigated);
+                if (!navigated) {
+                  console.error('[Login] Navigation to dashboard failed');
+                  this.loading = false;
+                  this.error = 'Login successful but navigation failed. Please refresh the page.';
+                }
+              },
+              (navError) => {
+                console.error('[Login] Navigation error:', navError);
+                this.loading = false;
+                this.error = 'Login successful but navigation failed. Please refresh the page.';
+              }
+            );
+          }, 100);
+        } else {
+          console.error('[Login] Login failed - server returned success: false');
+          this.loading = false;
+          this.error = loginResponse.message || 'Login failed. Please try again.';
+        }
+      },
+      error: (error) => {
+        console.error('[Login] Login request failed:', {
+          status: error.status,
+          statusText: error.statusText,
+          error: error.error,
+          message: error.message
+        });
+
+        this.loading = false;
+
+        // Provide specific error messages based on error type
+        if (error.status === 0) {
+          this.error = 'Cannot connect to server. Please check your internet connection and try again.';
+        } else if (error.status === 400) {
+          this.error = error.error?.message || 'Invalid authentication credentials. Please try again.';
+        } else if (error.status === 500) {
+          this.error = error.error?.message || 'Server error. Please try again in a few moments.';
+        } else {
+          this.error = error.error?.message || error.error?.error || 'An error occurred during login. Please try again.';
+        }
+      }
+    });
   }
 }
