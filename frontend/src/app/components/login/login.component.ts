@@ -29,7 +29,7 @@ declare global {
             <span class="text-white font-bold text-xl md:text-2xl">CV</span>
           </div>
           <h1 class="text-2xl md:text-4xl font-bold text-gradient mb-2 md:mb-3 px-4">Welcome Back</h1>
-          <p class="text-white/70 text-sm md:text-lg px-4">
+          <p class="text-white/70 text-sm md:text-lg px-4 max-w-sm mx-auto">
             Sign in to create and manage your professional landing pages
           </p>
         </div>
