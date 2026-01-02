@@ -10,7 +10,7 @@ import { CVWizardComponent } from '../../components/cv-wizard/cv-wizard.componen
   standalone: true,
   imports: [CommonModule, CVWizardComponent],
   template: `
-    <div class="relative min-h-[calc(100vh-4rem)] overflow-x-hidden py-4 md:py-8 w-full max-w-full flex items-center" style="background: #0a0e27;">
+    <div class="relative min-h-[calc(100vh-6rem)] overflow-x-hidden py-2 md:py-8 w-full max-w-full flex items-center" style="background: #0a0e27;">
       <!-- 3D Floating Orbs (hidden on mobile) -->
       <div class="floating-orb orb-purple hidden md:block" style="width: 350px; height: 350px; top: 15%; left: 5%; animation-delay: 0s;"></div>
       <div class="floating-orb orb-cyan hidden md:block" style="width: 300px; height: 300px; bottom: 15%; right: 5%; animation-delay: 3s;"></div>
@@ -20,7 +20,7 @@ import { CVWizardComponent } from '../../components/cv-wizard/cv-wizard.componen
         <!-- Authentication Check -->
         <div *ngIf="!isAuthenticated" class="max-w-sm md:max-w-md mx-auto">
           <div class="glass rounded-2xl p-5 md:p-8 text-center shadow-2xl animate-fade-in" style="background: rgba(26, 31, 58, 0.8); border: 2px solid rgba(167, 139, 250, 0.3);">
-            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center"
+            <div class="w-16 h-16 mx-auto mb-4 md:mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center"
                  style="box-shadow: 0 0 40px rgba(167, 139, 250, 0.5);">
               <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -28,7 +28,7 @@ import { CVWizardComponent } from '../../components/cv-wizard/cv-wizard.componen
               </svg>
             </div>
             <h1 class="text-2xl md:text-3xl font-bold text-gradient mb-3 md:mb-4">Login Required</h1>
-            <p class="text-sm md:text-base text-white/70 mb-6 md:mb-8">
+            <p class="text-sm md:text-base text-white/70 mb-5 md:mb-8">
               Please log in to upload your CV and generate a landing page.
             </p>
             <button (click)="goToLogin()" class="btn-primary w-full text-sm md:text-base py-3 md:py-4">
