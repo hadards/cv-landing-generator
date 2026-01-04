@@ -14,11 +14,11 @@ import { DeleteAccountModalComponent } from '../delete-account-modal/delete-acco
         <div class="flex justify-between items-center h-full px-3 md:px-4 py-2 md:py-4" style="overflow: visible;">
           <!-- Logo -->
           <div class="flex items-center space-x-2 md:space-x-3 flex-1 min-w-0">
-            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-16 md:h-20 flex-shrink-0"
+            <img src="assets/hadar-logo.png" alt="Hadar Logo" class="h-10 md:h-20 flex-shrink-0"
                  style="width: auto;">
-            <div class="min-w-0 flex-1 max-w-[180px] md:max-w-none">
-              <h1 class="text-sm md:text-2xl font-black text-gradient leading-tight whitespace-nowrap overflow-hidden text-ellipsis">CV Landing Generator</h1>
-              <p class="text-xs md:text-sm text-white/60 hidden sm:block">Create • Share • Shine</p>
+            <div class="min-w-0 flex-1">
+              <h1 class="text-xs md:text-2xl font-black text-gradient leading-tight">Landing Page AI</h1>
+              <p class="text-xs md:text-sm text-white/60 hidden md:block">Create • Share • Shine</p>
             </div>
           </div>
 

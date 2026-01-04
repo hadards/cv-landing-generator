@@ -164,10 +164,10 @@
           </div>
           
           <div>
-            <input type="file" 
+            <input type="file"
                    id="cv-file-input"
                    class="hidden"
-                   accept=".pdf,.doc,.docx"
+                   accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                    (change)="onFileSelected($event)">
             <label for="cv-file-input" class="btn-primary cursor-pointer inline-flex items-center">
               <span class="mr-2">+</span>
@@ -224,7 +224,7 @@
             <input type="file"
                    id="profile-file-input"
                    class="hidden"
-                   accept=".jpg,.jpeg,.png"
+                   accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                    (change)="onProfileSelected($event)">
             <label for="profile-file-input" class="btn-primary cursor-pointer inline-flex items-center justify-center w-full max-w-xs">
               <span class="mr-2">+</span>
